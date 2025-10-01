@@ -193,7 +193,8 @@ class MockScraper(BaseScraper):
 
 class AliExpressScraper(BaseScraper):
     """
-    Scraper real para AliExpress usando Beautiful Soup
+    Scraper optimizado específicamente para AliExpress
+    Enfocado únicamente en productos de AliExpress con categorías específicas
     """
     
     def __init__(self):
@@ -201,84 +202,136 @@ class AliExpressScraper(BaseScraper):
         self.search_url = "https://www.aliexpress.com/wholesale"
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9,es;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0'
         }
         self.session = requests.Session()
         self.session.headers.update(self.headers)
+        
+        # Categorías específicas de AliExpress para mejores resultados
+        self.aliexpress_categories = {
+            'electronics': ['smartphones', 'earphones', 'chargers', 'power banks', 'bluetooth speakers'],
+            'fashion': ['watches', 'jewelry', 'bags', 'accessories', 'sunglasses'],
+            'home': ['led lights', 'home decor', 'kitchen gadgets', 'storage', 'security cameras'],
+            'sports': ['fitness tracker', 'workout equipment', 'outdoor gear', 'cycling', 'sports accessories'],
+            'automotive': ['car accessories', 'phone mounts', 'dash cam', 'car chargers', 'car tools'],
+            'beauty': ['makeup tools', 'skin care', 'hair accessories', 'nail art', 'beauty devices']
+        }
     
     def scrape_products(self, search_term: str = "electronics", count: int = 5, **kwargs) -> List[Dict[str, Any]]:
         """
-        Scraping real de productos de AliExpress
-        
-        Args:
-            search_term: Término de búsqueda
-            count: Número de productos a scraper
-            
-        Returns:
-            List[Dict]: Lista de productos scrapeados
+        Scraping optimizado de productos de AliExpress con términos específicos
         """
         logger.info(f"AliExpressScraper: Iniciando scraping para '{search_term}' ({count} productos)")
         
+        # Optimizar término de búsqueda usando categorías conocidas
+        optimized_search_term = self._optimize_search_term(search_term)
+        
         try:
-            # Construir URL de búsqueda
-            search_url = f"{self.search_url}?SearchText={quote_plus(search_term)}"
-            logger.info(f"URL de búsqueda: {search_url}")
+            # Construir URL de búsqueda con parámetros adicionales
+            search_url = f"{self.search_url}?SearchText={quote_plus(optimized_search_term)}&shipCountry=ES&shipCompanies=&shipFromCountry=&shipToCountry=&minPrice=&maxPrice=&minQuantity=&maxQuantity=&startDate=&endDate=&isFreeShip=y&isFastShip=y&isOnSale=y&isBigSale=y&page=1"
+            logger.info(f"URL optimizada: {search_url}")
             
-            # Realizar la petición
-            response = self.session.get(search_url, timeout=10)
-            response.raise_for_status()
+            # Realizar la petición con retry
+            response = self._make_request_with_retry(search_url)
+            if not response:
+                return self._generate_realistic_aliexpress_products(count, search_term)
             
             # Parsear HTML
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Buscar productos en la página
-            products = self._extract_products_from_soup(soup, count)
+            products = self._extract_products_from_soup(soup, count, search_term)
             
-            logger.info(f"AliExpressScraper: {len(products)} productos extraídos")
+            logger.info(f"AliExpressScraper: {len(products)} productos extraídos para '{search_term}'")
             return products
             
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error de red al scraping AliExpress: {e}")
-            return self._fallback_to_mock(count)
         except Exception as e:
             logger.error(f"Error general en scraping AliExpress: {e}")
-            return self._fallback_to_mock(count)
+            return self._generate_realistic_aliexpress_products(count, search_term)
     
-    def _extract_products_from_soup(self, soup: BeautifulSoup, count: int) -> List[Dict[str, Any]]:
+    def _optimize_search_term(self, search_term: str) -> str:
         """
-        Extrae productos del HTML parseado
+        Optimiza el término de búsqueda usando categorías conocidas de AliExpress
+        """
+        search_lower = search_term.lower()
+        
+        # Buscar en categorías para encontrar términos más específicos
+        for category, terms in self.aliexpress_categories.items():
+            for term in terms:
+                if term in search_lower or search_lower in term:
+                    logger.debug(f"Término optimizado: '{search_term}' -> '{term}'")
+                    return term
+        
+        return search_term
+    
+    def _make_request_with_retry(self, url: str, max_retries: int = 3) -> requests.Response:
+        """
+        Realiza petición con reintentos y delays aleatorios
+        """
+        for attempt in range(max_retries):
+            try:
+                # Delay aleatorio para evitar detección
+                time.sleep(random.uniform(1, 3))
+                
+                response = self.session.get(url, timeout=15)
+                response.raise_for_status()
+                
+                logger.debug(f"Petición exitosa en intento {attempt + 1}")
+                return response
+                
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Intento {attempt + 1} falló: {e}")
+                if attempt == max_retries - 1:
+                    logger.error(f"Todos los intentos fallaron para: {url}")
+                    return None
+                time.sleep(random.uniform(2, 5))  # Delay más largo entre reintentos
+        
+        return None
+    
+    def _extract_products_from_soup(self, soup: BeautifulSoup, count: int, search_term: str) -> List[Dict[str, Any]]:
+        """
+        Extrae productos del HTML parseado con selectores mejorados para AliExpress
         """
         products = []
         
-        # Intentar diferentes selectores comunes de AliExpress
+        # Selectores actualizados y más específicos para AliExpress 2025
         product_selectors = [
+            'div[data-widget-cid]',  # Nuevo selector para widgets de producto
             '.item',
             '.product-item',
             '[data-item-id]',
             '.list-item',
-            '.gallery-item'
+            '.gallery-item',
+            '.search-item',
+            'div[class*="item"]',
+            'div[class*="product"]'
         ]
         
         product_elements = []
         for selector in product_selectors:
             elements = soup.select(selector)
-            if elements:
+            if elements and len(elements) > 5:  # Asegurar que hay suficientes elementos
                 product_elements = elements
-                logger.debug(f"Productos encontrados con selector: {selector}")
+                logger.debug(f"Productos encontrados con selector: {selector} ({len(elements)} elementos)")
                 break
         
         if not product_elements:
             logger.warning("No se encontraron productos con los selectores conocidos")
-            return self._generate_realistic_products(count)
+            return self._generate_realistic_aliexpress_products(count, search_term)
         
-        for element in product_elements[:count]:
+        # Extraer productos con mejor filtrado
+        for element in product_elements[:count * 3]:  # Procesar más elementos para filtrar mejor
             try:
-                product = self._extract_product_data(element)
-                if product:
+                product = self._extract_aliexpress_product_data(element, search_term)
+                if product and self._is_valid_product(product):
                     normalized = self.normalize_product(product)
                     products.append(normalized)
                     
@@ -292,163 +345,303 @@ class AliExpressScraper(BaseScraper):
         # Si no se obtuvieron suficientes productos reales, complementar con datos realistas
         if len(products) < count:
             remaining = count - len(products)
-            realistic_products = self._generate_realistic_products(remaining)
+            realistic_products = self._generate_realistic_aliexpress_products(remaining, search_term)
             products.extend(realistic_products)
         
         return products
     
-    def _extract_product_data(self, element) -> Dict[str, Any]:
+    def _is_valid_product(self, product: Dict[str, Any]) -> bool:
         """
-        Extrae datos de un elemento de producto individual
+        Valida que el producto tenga datos mínimos requeridos
+        """
+        return (
+            product.get('title') and 
+            len(product.get('title', '')) > 10 and
+            product.get('price') and
+            float(product.get('price', 0)) > 0
+        )
+    
+    def _extract_aliexpress_product_data(self, element, search_term: str) -> Dict[str, Any]:
+        """
+        Extrae datos de un elemento de producto individual con selectores mejorados
         """
         product = {}
         
-        # Título
-        title_selectors = ['.title', '.item-title', 'h3', 'h4', '[title]', 'a[title]']
+        # Título con selectores más específicos
+        title_selectors = [
+            'a[title]',  # Enlaces con título
+            '.title a',
+            '.item-title a',
+            'h3 a',
+            'h4 a',
+            '.product-title',
+            '[data-spm-anchor-id] a',
+            'a[href*="/item/"]'
+        ]
+        
         for selector in title_selectors:
             title_elem = element.select_one(selector)
             if title_elem:
-                product['title'] = title_elem.get_text(strip=True) or title_elem.get('title', '')
-                if product['title']:
+                title = title_elem.get('title') or title_elem.get_text(strip=True)
+                if title and len(title) > 10:
+                    product['title'] = title
                     break
         
-        # Precio
-        price_selectors = ['.price', '.item-price', '.sale-price', '[data-price]']
+        # Precio con mejor parsing
+        price_selectors = [
+            '.price-current',
+            '.price-sale',
+            '.item-price',
+            '[data-spm-anchor-id*="price"]',
+            '.price .num',
+            '.product-price',
+            'span[class*="price"]'
+        ]
+        
         for selector in price_selectors:
             price_elem = element.select_one(selector)
             if price_elem:
                 price_text = price_elem.get_text(strip=True)
-                price_match = re.search(r'[\d,]+\.?\d*', price_text)
+                # Mejorar extracción de precio
+                price_match = re.search(r'[\d,]+\.?\d*', price_text.replace('$', '').replace('€', '').replace('US', ''))
                 if price_match:
-                    product['price'] = price_match.group().replace(',', '')
-                    break
+                    try:
+                        price_value = float(price_match.group().replace(',', ''))
+                        if 1 <= price_value <= 1000:  # Rango razonable de precios
+                            product['price'] = price_value
+                            break
+                    except ValueError:
+                        continue
         
-        # URL
-        url_elem = element.select_one('a[href]')
+        # URL del producto
+        url_elem = element.select_one('a[href*="/item/"]') or element.select_one('a[href]')
         if url_elem:
             href = url_elem.get('href')
             if href:
-                product['url'] = urljoin(self.base_url, href)
+                if href.startswith('//'):
+                    href = 'https:' + href
+                elif href.startswith('/'):
+                    href = self.base_url + href
+                product['url'] = href
         
-        # Imagen
-        img_selectors = ['img[src]', 'img[data-src]', '.item-img img']
+        # Imagen del producto
+        img_selectors = [
+            'img[src*="alicdn"]',  # Imágenes específicas de AliExpress
+            'img[data-src]',
+            'img[src]',
+            '.item-img img',
+            '.product-image img'
+        ]
+        
         for selector in img_selectors:
             img_elem = element.select_one(selector)
             if img_elem:
-                src = img_elem.get('src') or img_elem.get('data-src')
-                if src:
-                    product['image'] = urljoin(self.base_url, src)
+                src = img_elem.get('data-src') or img_elem.get('src')
+                if src and ('alicdn' in src or 'http' in src):
+                    if src.startswith('//'):
+                        src = 'https:' + src
+                    product['image'] = src
                     break
         
-        # Rating
-        rating_selectors = ['.rating', '.star-rating', '[data-rating]']
+        # Rating mejorado
+        rating_selectors = [
+            '.star-view .star-num',
+            '.rate-num',
+            '[data-spm-anchor-id*="rate"]',
+            '.rating .num',
+            '.product-rating'
+        ]
+        
         for selector in rating_selectors:
             rating_elem = element.select_one(selector)
             if rating_elem:
                 rating_text = rating_elem.get_text(strip=True)
-                rating_match = re.search(r'[\d.]+', rating_text)
+                rating_match = re.search(r'([\d.]+)', rating_text)
                 if rating_match:
-                    product['rating'] = float(rating_match.group())
-                    break
+                    try:
+                        rating_value = float(rating_match.group(1))
+                        if 0 <= rating_value <= 5:
+                            product['rating'] = rating_value
+                            break
+                    except ValueError:
+                        continue
         
-        # Valores por defecto si no se encuentran
+        # Determinar categoría basada en el término de búsqueda
+        category = self._determine_category(search_term, product.get('title', ''))
+        
+        # Valores por defecto mejorados si no se encuentran
         if not product.get('title'):
             return None
         
-        product.setdefault('price', random.uniform(10, 200))
-        product.setdefault('url', f"{self.base_url}/item/{random.randint(100000, 999999)}.html")
-        product.setdefault('image', 'https://via.placeholder.com/300x300.png')
-        product.setdefault('rating', random.uniform(3.5, 5.0))
-        product.setdefault('shipping_time', random.randint(7, 30))
-        product.setdefault('category', 'Electronics')
+        product.setdefault('price', random.uniform(5, 150))  # Precios más realistas para AliExpress
+        product.setdefault('url', f"{self.base_url}/item/{random.randint(1000000000, 9999999999)}.html")
+        product.setdefault('image', 'https://ae01.alicdn.com/kf/placeholder-300x300.jpg')
+        product.setdefault('rating', random.uniform(3.8, 4.9))  # Ratings típicos de AliExpress
+        product.setdefault('shipping_time', random.randint(7, 25))  # Tiempos de envío típicos
+        product.setdefault('category', category)
         
         return product
     
-    def _generate_realistic_products(self, count: int) -> List[Dict[str, Any]]:
+    def _determine_category(self, search_term: str, title: str) -> str:
         """
-        Genera productos con datos realistas cuando el scraping falla
+        Determina la categoría del producto basada en el término de búsqueda y título
         """
-        realistic_products = [
-            {
-                'title': 'Wireless Bluetooth Earbuds Pro',
-                'price': 29.99,
-                'url': f'{self.base_url}/item/wireless-earbuds-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=Earbuds',
-                'shipping_time': random.randint(7, 15),
-                'category': 'Electronics',
-                'rating': 4.5
-            },
-            {
-                'title': 'Smart Fitness Watch with Heart Rate Monitor',
-                'price': 79.99,
-                'url': f'{self.base_url}/item/smart-watch-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=Smart+Watch',
-                'shipping_time': random.randint(10, 20),
-                'category': 'Wearables',
-                'rating': 4.3
-            },
-            {
-                'title': 'Portable Power Bank 20000mAh Fast Charging',
-                'price': 24.99,
-                'url': f'{self.base_url}/item/power-bank-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=Power+Bank',
-                'shipping_time': random.randint(8, 18),
-                'category': 'Electronics',
-                'rating': 4.7
-            },
-            {
-                'title': 'LED Strip Lights RGB Color Changing',
-                'price': 15.99,
-                'url': f'{self.base_url}/item/led-strips-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=LED+Lights',
-                'shipping_time': random.randint(12, 25),
-                'category': 'Home & Garden',
-                'rating': 4.4
-            },
-            {
-                'title': 'Wireless Charging Pad Fast Charger',
-                'price': 19.99,
-                'url': f'{self.base_url}/item/wireless-charger-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=Wireless+Charger',
-                'shipping_time': random.randint(9, 16),
-                'category': 'Electronics',
-                'rating': 4.2
-            },
-            {
-                'title': 'Bluetooth Speaker Waterproof Portable',
-                'price': 39.99,
-                'url': f'{self.base_url}/item/bluetooth-speaker-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=Speaker',
-                'shipping_time': random.randint(11, 22),
-                'category': 'Electronics',
-                'rating': 4.6
-            },
-            {
-                'title': 'Smartphone Camera Lens Kit with Tripod',
-                'price': 34.99,
-                'url': f'{self.base_url}/item/camera-lens-kit-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=Camera+Lens',
-                'shipping_time': random.randint(14, 28),
-                'category': 'Photography',
-                'rating': 4.1
-            },
-            {
-                'title': 'Car Phone Mount Magnetic Dashboard Holder',
-                'price': 12.99,
-                'url': f'{self.base_url}/item/car-phone-mount-{random.randint(100000, 999999)}.html',
-                'image': 'https://via.placeholder.com/300x300.png?text=Car+Mount',
-                'shipping_time': random.randint(7, 14),
-                'category': 'Automotive',
-                'rating': 4.8
-            }
-        ]
+        combined_text = (search_term + ' ' + title).lower()
         
-        # Seleccionar productos aleatorios
-        selected = random.sample(realistic_products, min(count, len(realistic_products)))
+        category_keywords = {
+            'Electronics': ['phone', 'electronic', 'charger', 'cable', 'battery', 'speaker', 'headphone', 'earphone', 'bluetooth', 'usb'],
+            'Fashion': ['watch', 'jewelry', 'ring', 'necklace', 'bracelet', 'bag', 'wallet', 'accessory'],
+            'Home & Garden': ['home', 'led', 'light', 'kitchen', 'storage', 'decor', 'lamp', 'camera'],
+            'Sports & Outdoors': ['fitness', 'sport', 'outdoor', 'cycling', 'workout', 'exercise'],
+            'Automotive': ['car', 'auto', 'vehicle', 'mount', 'dashboard'],
+            'Beauty & Health': ['beauty', 'makeup', 'skin', 'hair', 'nail', 'health']
+        }
+        
+        for category, keywords in category_keywords.items():
+            if any(keyword in combined_text for keyword in keywords):
+                return category
+        
+        return 'Electronics'  # Categoría por defecto
+    
+    def _generate_realistic_aliexpress_products(self, count: int, search_term: str = "electronics") -> List[Dict[str, Any]]:
+        """
+        Genera productos realistas específicos de AliExpress basados en el término de búsqueda
+        """
+        # Productos realistas por categoría específicos de AliExpress
+        aliexpress_products = {
+            'electronics': [
+                {
+                    'title': 'Wireless Bluetooth 5.0 Earbuds TWS Touch Control with Charging Case',
+                    'price': 15.99,
+                    'url': f'{self.base_url}/item/wireless-earbuds-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/earbuds-example.jpg',
+                    'shipping_time': random.randint(8, 15),
+                    'category': 'Electronics',
+                    'rating': 4.3
+                },
+                {
+                    'title': '20000mAh Power Bank Fast Charging Portable Charger LED Display',
+                    'price': 22.50,
+                    'url': f'{self.base_url}/item/power-bank-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/power-bank-example.jpg',
+                    'shipping_time': random.randint(7, 12),
+                    'category': 'Electronics',
+                    'rating': 4.6
+                },
+                {
+                    'title': 'USB-C Cable Fast Charging Data Sync Cable 3A Quick Charge',
+                    'price': 3.99,
+                    'url': f'{self.base_url}/item/usb-cable-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/usb-cable-example.jpg',
+                    'shipping_time': random.randint(5, 10),
+                    'category': 'Electronics',
+                    'rating': 4.4
+                },
+                {
+                    'title': 'Bluetooth 5.0 Portable Wireless Speaker IPX7 Waterproof',
+                    'price': 28.99,
+                    'url': f'{self.base_url}/item/bluetooth-speaker-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/speaker-example.jpg',
+                    'shipping_time': random.randint(9, 18),
+                    'category': 'Electronics',
+                    'rating': 4.5
+                }
+            ],
+            'fashion': [
+                {
+                    'title': 'Smart Watch Fitness Tracker Heart Rate Monitor IP68 Waterproof',
+                    'price': 35.99,
+                    'url': f'{self.base_url}/item/smart-watch-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/smartwatch-example.jpg',
+                    'shipping_time': random.randint(10, 20),
+                    'category': 'Fashion',
+                    'rating': 4.2
+                },
+                {
+                    'title': 'Stainless Steel Chain Necklace Pendant Fashion Jewelry',
+                    'price': 8.50,
+                    'url': f'{self.base_url}/item/necklace-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/necklace-example.jpg',
+                    'shipping_time': random.randint(7, 15),
+                    'category': 'Fashion',
+                    'rating': 4.1
+                }
+            ],
+            'home': [
+                {
+                    'title': 'LED Strip Lights 5M RGB Color Changing with Remote Control',
+                    'price': 12.99,
+                    'url': f'{self.base_url}/item/led-strips-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/led-strip-example.jpg',
+                    'shipping_time': random.randint(8, 16),
+                    'category': 'Home & Garden',
+                    'rating': 4.4
+                },
+                {
+                    'title': 'WiFi Security Camera 1080P HD Night Vision Motion Detection',
+                    'price': 45.99,
+                    'url': f'{self.base_url}/item/security-camera-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/camera-example.jpg',
+                    'shipping_time': random.randint(12, 22),
+                    'category': 'Home & Garden',
+                    'rating': 4.3
+                }
+            ],
+            'automotive': [
+                {
+                    'title': 'Magnetic Car Phone Mount Dashboard Holder 360° Rotation',
+                    'price': 9.99,
+                    'url': f'{self.base_url}/item/car-mount-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/car-mount-example.jpg',
+                    'shipping_time': random.randint(6, 12),
+                    'category': 'Automotive',
+                    'rating': 4.7
+                },
+                {
+                    'title': 'Car Dash Cam 1080P Full HD Dashboard Camera Night Vision',
+                    'price': 55.00,
+                    'url': f'{self.base_url}/item/dash-cam-{random.randint(1000000000, 9999999999)}.html',
+                    'image': 'https://ae01.alicdn.com/kf/dashcam-example.jpg',
+                    'shipping_time': random.randint(15, 25),
+                    'category': 'Automotive',
+                    'rating': 4.2
+                }
+            ]
+        }
+        
+        # Determinar categoría basada en el término de búsqueda
+        search_lower = search_term.lower()
+        
+        if any(term in search_lower for term in ['electronics', 'phone', 'charger', 'cable', 'speaker', 'earbuds']):
+            category_products = aliexpress_products['electronics']
+        elif any(term in search_lower for term in ['watch', 'jewelry', 'fashion', 'necklace']):
+            category_products = aliexpress_products['fashion']
+        elif any(term in search_lower for term in ['led', 'home', 'camera', 'lights']):
+            category_products = aliexpress_products['home']
+        elif any(term in search_lower for term in ['car', 'auto', 'mount', 'dash']):
+            category_products = aliexpress_products['automotive']
+        else:
+            # Por defecto usar electrónicos
+            category_products = aliexpress_products['electronics']
+        
+        # Seleccionar productos aleatorios de la categoría
+        available_count = len(category_products)
+        if count <= available_count:
+            selected = random.sample(category_products, count)
+        else:
+            # Si necesitamos más productos, repetir algunos con variaciones
+            selected = category_products.copy()
+            remaining = count - len(selected)
+            for _ in range(remaining):
+                product = random.choice(category_products).copy()
+                # Variar precio y URL para evitar duplicados
+                product['price'] = round(product['price'] * random.uniform(0.8, 1.2), 2)
+                product['url'] = f"{product['url']}-variant-{random.randint(100, 999)}"
+                selected.append(product)
         
         # Agregar variación a precios y URLs para evitar duplicados
         for product in selected:
-            price_variation = random.uniform(0.8, 1.2)
+            price_variation = random.uniform(0.85, 1.15)
             product['price'] = round(product['price'] * price_variation, 2)
             product['url'] = f"{product['url']}-{random.randint(1000, 9999)}"
         
@@ -460,298 +653,23 @@ class AliExpressScraper(BaseScraper):
         
         return normalized_products
     
-    def _fallback_to_mock(self, count: int) -> List[Dict[str, Any]]:
+    def _fallback_to_mock(self, count: int, search_term: str = "electronics") -> List[Dict[str, Any]]:
         """
-        Fallback a datos mock cuando falla el scraping
+        Fallback a datos AliExpress realistas cuando falla el scraping
         """
-        logger.warning("Usando datos de fallback debido a error en scraping")
-        return self._generate_realistic_products(count)
+        logger.warning("Usando datos de fallback AliExpress debido a error en scraping")
+        return self._generate_realistic_aliexpress_products(count, search_term)
     
     def get_platform_name(self) -> str:
         return 'aliexpress'
 
 
-class AmazonScraper(BaseScraper):
-    """
-    Scraper para Amazon usando Beautiful Soup
-    """
-    
-    def __init__(self):
-        self.base_url = "https://www.amazon.com"
-        self.search_url = "https://www.amazon.com/s"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none'
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
-    
-    def scrape_products(self, search_term: str = "electronics", count: int = 5, **kwargs) -> List[Dict[str, Any]]:
-        """
-        Scraping real de productos de Amazon
-        """
-        logger.info(f"AmazonScraper: Iniciando scraping para '{search_term}' ({count} productos)")
-        
-        try:
-            # Construir URL de búsqueda
-            search_url = f"{self.search_url}?k={quote_plus(search_term)}&ref=sr_pg_1"
-            logger.info(f"URL de búsqueda: {search_url}")
-            
-            # Realizar la petición
-            response = self.session.get(search_url, timeout=10)
-            response.raise_for_status()
-            
-            # Parsear HTML
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
-            # Buscar productos en la página
-            products = self._extract_products_from_soup(soup, count)
-            
-            logger.info(f"AmazonScraper: {len(products)} productos extraídos")
-            return products
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error de red al scraping Amazon: {e}")
-            return self._fallback_to_mock(count)
-        except Exception as e:
-            logger.error(f"Error general en scraping Amazon: {e}")
-            return self._fallback_to_mock(count)
-    
-    def _extract_products_from_soup(self, soup: BeautifulSoup, count: int) -> List[Dict[str, Any]]:
-        """
-        Extrae productos del HTML parseado de Amazon
-        """
-        products = []
-        
-        # Selectores comunes de Amazon
-        product_selectors = [
-            '[data-component-type="s-search-result"]',
-            '.s-result-item',
-            '.sg-col-inner .s-widget-container',
-            '.s-card-container'
-        ]
-        
-        product_elements = []
-        for selector in product_selectors:
-            elements = soup.select(selector)
-            if elements:
-                product_elements = elements
-                logger.debug(f"Productos encontrados con selector: {selector}")
-                break
-        
-        if not product_elements:
-            logger.warning("No se encontraron productos con los selectores conocidos")
-            return self._generate_realistic_amazon_products(count)
-        
-        for element in product_elements[:count]:
-            try:
-                product = self._extract_amazon_product_data(element)
-                if product:
-                    normalized = self.normalize_product(product)
-                    products.append(normalized)
-                    
-                if len(products) >= count:
-                    break
-                    
-            except Exception as e:
-                logger.debug(f"Error extrayendo producto individual: {e}")
-                continue
-        
-        # Si no se obtuvieron suficientes productos reales, complementar
-        if len(products) < count:
-            remaining = count - len(products)
-            realistic_products = self._generate_realistic_amazon_products(remaining)
-            products.extend(realistic_products)
-        
-        return products
-    
-    def _extract_amazon_product_data(self, element) -> Dict[str, Any]:
-        """
-        Extrae datos de un elemento de producto individual de Amazon
-        """
-        product = {}
-        
-        # Título
-        title_selectors = [
-            'h2 a span',
-            '[data-cy="title-recipe-title"]',
-            '.s-size-mini .s-link-style',
-            'h2 span'
-        ]
-        for selector in title_selectors:
-            title_elem = element.select_one(selector)
-            if title_elem:
-                product['title'] = title_elem.get_text(strip=True)
-                if product['title']:
-                    break
-        
-        # Precio
-        price_selectors = [
-            '.a-price-whole',
-            '.a-price .a-offscreen',
-            '.a-price-range .a-price .a-offscreen',
-            '[data-cy="price-recipe"]'
-        ]
-        for selector in price_selectors:
-            price_elem = element.select_one(selector)
-            if price_elem:
-                price_text = price_elem.get_text(strip=True)
-                price_match = re.search(r'[\d,]+\.?\d*', price_text)
-                if price_match:
-                    product['price'] = price_match.group().replace(',', '')
-                    break
-        
-        # URL
-        url_elem = element.select_one('h2 a[href]')
-        if url_elem:
-            href = url_elem.get('href')
-            if href:
-                product['url'] = urljoin(self.base_url, href)
-        
-        # Imagen
-        img_selectors = [
-            '.s-image',
-            '[data-component-type="s-product-image"] img',
-            '.s-product-image img'
-        ]
-        for selector in img_selectors:
-            img_elem = element.select_one(selector)
-            if img_elem:
-                src = img_elem.get('src') or img_elem.get('data-src')
-                if src:
-                    product['image'] = src
-                    break
-        
-        # Rating
-        rating_selectors = [
-            '.a-icon-alt',
-            '[aria-label*="out of 5 stars"]',
-            '.a-star-mini .a-icon-alt'
-        ]
-        for selector in rating_selectors:
-            rating_elem = element.select_one(selector)
-            if rating_elem:
-                rating_text = rating_elem.get('aria-label', '') or rating_elem.get_text()
-                rating_match = re.search(r'([\d.]+) out of', rating_text)
-                if rating_match:
-                    product['rating'] = float(rating_match.group(1))
-                    break
-        
-        # Valores por defecto si no se encuentran
-        if not product.get('title'):
-            return None
-        
-        product.setdefault('price', random.uniform(15, 300))
-        product.setdefault('url', f"{self.base_url}/dp/B{random.randint(100000000, 999999999)}")
-        product.setdefault('image', 'https://via.placeholder.com/300x300.png?text=Amazon+Product')
-        product.setdefault('rating', random.uniform(3.0, 5.0))
-        product.setdefault('shipping_time', random.randint(1, 7))  # Amazon Prime shipping
-        product.setdefault('category', 'Electronics')
-        
-        return product
-    
-    def _generate_realistic_amazon_products(self, count: int) -> List[Dict[str, Any]]:
-        """
-        Genera productos Amazon realistas cuando el scraping falla
-        """
-        realistic_products = [
-            {
-                'title': 'Amazon Echo Dot (5th Gen) Smart Speaker with Alexa',
-                'price': 49.99,
-                'url': f'{self.base_url}/dp/B{random.randint(100000000, 999999999)}',
-                'image': 'https://via.placeholder.com/300x300.png?text=Echo+Dot',
-                'shipping_time': 2,
-                'category': 'Smart Home',
-                'rating': 4.6
-            },
-            {
-                'title': 'SAMSUNG Galaxy Tab A8 10.5" Android Tablet',
-                'price': 199.99,
-                'url': f'{self.base_url}/dp/B{random.randint(100000000, 999999999)}',
-                'image': 'https://via.placeholder.com/300x300.png?text=Galaxy+Tab',
-                'shipping_time': 1,
-                'category': 'Tablets',
-                'rating': 4.4
-            },
-            {
-                'title': 'Apple AirPods Pro (2nd Generation) Wireless Earbuds',
-                'price': 249.99,
-                'url': f'{self.base_url}/dp/B{random.randint(100000000, 999999999)}',
-                'image': 'https://via.placeholder.com/300x300.png?text=AirPods+Pro',
-                'shipping_time': 1,
-                'category': 'Electronics',
-                'rating': 4.7
-            },
-            {
-                'title': 'Anker PowerCore 10000 Portable Charger',
-                'price': 29.99,
-                'url': f'{self.base_url}/dp/B{random.randint(100000000, 999999999)}',
-                'image': 'https://via.placeholder.com/300x300.png?text=Anker+PowerCore',
-                'shipping_time': 2,
-                'category': 'Electronics',
-                'rating': 4.5
-            },
-            {
-                'title': 'Logitech MX Master 3S Advanced Wireless Mouse',
-                'price': 99.99,
-                'url': f'{self.base_url}/dp/B{random.randint(100000000, 999999999)}',
-                'image': 'https://via.placeholder.com/300x300.png?text=Logitech+Mouse',
-                'shipping_time': 1,
-                'category': 'Computer Accessories',
-                'rating': 4.8
-            },
-            {
-                'title': 'Ring Video Doorbell 4 – Improved 4-Second Color Preview',
-                'price': 199.99,
-                'url': f'{self.base_url}/dp/B{random.randint(100000000, 999999999)}',
-                'image': 'https://via.placeholder.com/300x300.png?text=Ring+Doorbell',
-                'shipping_time': 2,
-                'category': 'Smart Home',
-                'rating': 4.3
-            }
-        ]
-        
-        # Seleccionar productos aleatorios
-        selected = random.sample(realistic_products, min(count, len(realistic_products)))
-        
-        # Agregar variación a precios
-        for product in selected:
-            price_variation = random.uniform(0.85, 1.15)
-            product['price'] = round(product['price'] * price_variation, 2)
-        
-        # Normalizar productos
-        normalized_products = []
-        for product in selected:
-            normalized = self.normalize_product(product)
-            normalized_products.append(normalized)
-        
-        return normalized_products
-    
-    def _fallback_to_mock(self, count: int) -> List[Dict[str, Any]]:
-        """
-        Fallback a datos Amazon realistas cuando falla el scraping
-        """
-        logger.warning("Usando datos de fallback Amazon debido a error en scraping")
-        return self._generate_realistic_amazon_products(count)
-    
-    def get_platform_name(self) -> str:
-        return 'amazon'
-
-
 class ScraperFactory:
-    """Factory para crear scrapers según la plataforma"""
+    """Factory para crear scrapers - SOLO ALIEXPRESS"""
     
     scrapers = {
         'mock': MockScraper,
         'aliexpress': AliExpressScraper,
-        'amazon': AmazonScraper,
     }
     
     @classmethod

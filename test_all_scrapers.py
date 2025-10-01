@@ -23,8 +23,8 @@ logging.basicConfig(
 )
 
 def test_all_scrapers():
-    """Prueba todos los scrapers disponibles"""
-    print("🔍 Probando todos los scrapers disponibles...")
+    """Prueba todos los scrapers disponibles - SOLO ALIEXPRESS"""
+    print("🔍 Probando scrapers disponibles (Mock + AliExpress)...")
     
     platforms = ScraperFactory.get_available_platforms()
     print(f"📋 Plataformas disponibles: {platforms}")
@@ -37,11 +37,9 @@ def test_all_scrapers():
         try:
             scraper = ScraperFactory.get_scraper(platform)
             
-            # Probar con diferentes términos según la plataforma
-            if platform == 'amazon':
-                search_terms = ['wireless headphones', 'smartphone case']
-            elif platform == 'aliexpress':
-                search_terms = ['bluetooth speaker', 'led strip']
+            # Términos de búsqueda específicos para AliExpress
+            if platform == 'aliexpress':
+                search_terms = ['wireless earbuds', 'led strip lights', 'phone charger', 'bluetooth speaker']
             else:  # mock
                 search_terms = ['electronics', 'gadgets']
             
@@ -66,23 +64,23 @@ def test_all_scrapers():
             print(f"❌ Error probando {platform}: {e}")
     
     print(f"\n{'='*60}")
-    print("🎉 Prueba de todos los scrapers completada!")
+    print("🎉 Prueba de scrapers AliExpress completada!")
     print(f"{'='*60}")
 
 def test_scraper_factory():
-    """Prueba la funcionalidad del factory"""
-    print("\n🏭 Probando ScraperFactory...")
+    """Prueba la funcionalidad del factory - SOLO ALIEXPRESS"""
+    print("\n🏭 Probando ScraperFactory (AliExpress focus)...")
     
     # Probar plataformas válidas
-    for platform in ['mock', 'aliexpress', 'amazon']:
+    for platform in ['mock', 'aliexpress']:
         scraper = ScraperFactory.get_scraper(platform)
         print(f"✅ {platform}: {scraper.__class__.__name__}")
     
-    # Probar plataforma inválida
-    invalid_scraper = ScraperFactory.get_scraper('invalid_platform')
-    print(f"✅ invalid_platform: {invalid_scraper.__class__.__name__} (fallback)")
+    # Probar plataforma inválida (debe devolver MockScraper)
+    invalid_scraper = ScraperFactory.get_scraper('amazon')  # Ya no existe
+    print(f"✅ amazon (removed): {invalid_scraper.__class__.__name__} (fallback)")
     
-    print("✅ ScraperFactory funcionando correctamente")
+    print("✅ ScraperFactory funcionando correctamente (solo AliExpress)")
 
 if __name__ == '__main__':
     test_scraper_factory()
