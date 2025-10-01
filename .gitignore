@@ -1,0 +1,100 @@
+# 🚫 Gitignore para Dropshipping Assistant
+
+# ===== ARCHIVOS SENSIBLES =====
+.env
+.env.local
+.env.production
+.env.backup
+*.key
+*.pem
+*.p12
+*.pfx
+
+# ===== BASE DE DATOS =====
+db.sqlite3
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== LOGS =====
+*.log
+logs/
+dropship_bot.log
+
+# ===== ARCHIVOS TEMPORALES =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ===== ENTORNOS VIRTUALES =====
+.venv/
+venv/
+ENV/
+env/
+.env/
+
+# ===== IDEs =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== SISTEMA OPERATIVO =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ===== DOCKER =====
+.dockerignore
+
+# ===== ARCHIVOS DE BACKUP =====
+backups/
+*.backup
+*.bak
+
+# ===== CERTIFICADOS =====
+certs/*.crt
+certs/*.key
+certs/*.pem
+certs/*.p12
+certs/*.pfx
+
+# ===== ARCHIVOS DE DATOS =====
+data/
+media/uploads/
+static/
+
+# ===== CACHE =====
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ===== NODE MODULES (si usamos frontend) =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

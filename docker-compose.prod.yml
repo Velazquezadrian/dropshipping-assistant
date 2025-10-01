@@ -1,0 +1,42 @@
+# 🏭 Docker Compose - Configuración de Producción
+# Archivo adicional para configuración de producción
+# Uso: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+version: '3.8'
+
+services:
+  app:
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+    command: ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "dropship_bot.wsgi:application"]
+    restart: always
+    
+  db:
+    restart: always
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    
+  nginx:
+    restart: always
+    environment:
+      - NGINX_HOST=${NGINX_HOST:-localhost}
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    
+  redis:
+    restart: always
+
+# Configuración adicional para producción
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
