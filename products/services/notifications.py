@@ -1,92 +1,224 @@
 """
-Sistema de notificaciones para productos de dropshipping
-Soporta notificaciones por Telegram y Discord
+🔔 Sistema Avanzado de Notificaciones para Dropshipping Assistant
+Filtros inteligentes, plantillas personalizadas y alertas condicionales
 """
 
 import logging
-import asyncio
 import requests
+import json
 from typing import List, Dict, Any, Optional
-from decimal import Decimal
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.utils import timezone
 from products.models import Product
+from products.services.notification_filters import filter_engine, NotificationRule, NotificationPriority
+from products.services.notification_templates import template_engine
 
-logger = logging.getLogger('products')
+logger = logging.getLogger('notifications')
 
 
 class BaseNotificationService:
-    """Clase base para servicios de notificación"""
+    """Clase base para servicios de notificación con sistema avanzado"""
     
     def __init__(self):
-        self.enabled = self.is_configured()
-    
-    def is_configured(self) -> bool:
-        """Verificar si el servicio está configurado correctamente"""
-        raise NotImplementedError
+        self.enabled = True
+        self.rate_limit = 60  # segundos entre mensajes
+        self.last_notification = None
+        self.platform_name = "base"
+        self.notification_stats = {
+            'sent': 0,
+            'failed': 0,
+            'filtered': 0,
+            'last_sent': None
+        }
     
     def send_notification(self, message: str, **kwargs) -> bool:
-        """Enviar notificación"""
+        """Enviar notificación - implementar en subclases"""
         raise NotImplementedError
     
-    def format_product_message(self, product: Product) -> str:
-        """Formatear mensaje para un producto"""
-        message = f"""
-🛍️ **Nuevo Producto Encontrado**
-
-📝 **Título:** {product.title}
-💰 **Precio:** ${product.price}
-⭐ **Calificación:** {product.rating or 'N/A'}/5
-🚚 **Envío:** {product.shipping_time or 'N/A'} días
-🏷️ **Categoría:** {product.category or 'N/A'}
-🌐 **Plataforma:** {product.source_platform}
-🔗 **URL:** {product.url}
-
-⏰ Agregado el {product.created_at.strftime('%d/%m/%Y %H:%M')}
-        """.strip()
+    def send_product_notification(self, product: Product) -> Dict[str, Any]:
+        """
+        Enviar notificación de producto con filtros y plantillas
+        
+        Args:
+            product: Producto para notificar
+            
+        Returns:
+            Dict con resultado del envío
+        """
+        result = {
+            'sent': False,
+            'filtered': False,
+            'rules_matched': [],
+            'template_used': None,
+            'error': None,
+            'platform': self.platform_name
+        }
+        
+        try:
+            # Evaluar producto contra reglas de filtros
+            matching_rules = filter_engine.evaluate_product(product)
+            
+            if not matching_rules:
+                result['filtered'] = True
+                result['error'] = "Producto no cumple ninguna regla de filtro"
+                self.notification_stats['filtered'] += 1
+                logger.debug(f"Producto {product.title} filtrado - no cumple reglas")
+                return result
+            
+            # Usar la regla de mayor prioridad
+            top_rule = self._get_highest_priority_rule(matching_rules)
+            result['rules_matched'] = [rule.name for rule in matching_rules]
+            
+            # Verificar si esta plataforma está habilitada para la regla
+            if self.platform_name not in top_rule.platforms:
+                result['filtered'] = True
+                result['error'] = f"Plataforma {self.platform_name} no habilitada para regla {top_rule.name}"
+                return result
+            
+            # Renderizar notificación usando plantilla
+            notification_data = template_engine.render_notification(
+                template_name=top_rule.template,
+                product=product,
+                priority=top_rule.priority,
+                platform=self.platform_name
+            )
+            
+            result['template_used'] = top_rule.template
+            
+            # Enviar notificación
+            success = self._send_rendered_notification(notification_data, product)
+            
+            if success:
+                result['sent'] = True
+                self.notification_stats['sent'] += 1
+                self.notification_stats['last_sent'] = datetime.now()
+                logger.info(f"Notificación enviada a {self.platform_name} para producto {product.title}")
+            else:
+                result['error'] = "Fallo en envío de notificación"
+                self.notification_stats['failed'] += 1
+            
+        except Exception as e:
+            result['error'] = str(e)
+            self.notification_stats['failed'] += 1
+            logger.error(f"Error enviando notificación a {self.platform_name}: {e}")
+        
+        return result
+    
+    def _get_highest_priority_rule(self, rules: List[NotificationRule]) -> NotificationRule:
+        """Obtener regla de mayor prioridad"""
+        priority_order = {
+            NotificationPriority.URGENT: 4,
+            NotificationPriority.HIGH: 3,
+            NotificationPriority.NORMAL: 2,
+            NotificationPriority.LOW: 1
+        }
+        
+        return max(rules, key=lambda r: priority_order.get(r.priority, 0))
+    
+    def _send_rendered_notification(self, notification_data: Dict[str, Any], product: Product) -> bool:
+        """Enviar notificación renderizada - implementar en subclases"""
+        raise NotImplementedError
+    
+    
+    def send_bulk_notification(self, products: List[Product], title: str = "Productos Encontrados") -> Dict[str, Any]:
+        """Enviar notificación con múltiples productos"""
+        result = {
+            'sent': False,
+            'products_processed': len(products),
+            'notifications_sent': 0,
+            'error': None
+        }
+        
+        try:
+            if not products:
+                result['error'] = "No hay productos para notificar"
+                return result
+            
+            # Enviar notificación individual para cada producto que cumpla filtros
+            notifications_sent = 0
+            for product in products:
+                product_result = self.send_product_notification(product)
+                if product_result['sent']:
+                    notifications_sent += 1
+            
+            result['notifications_sent'] = notifications_sent
+            result['sent'] = notifications_sent > 0
+            
+            # Si no se envió ninguna notificación individual, enviar resumen
+            if notifications_sent == 0:
+                summary_message = self._create_summary_message(products, title)
+                if summary_message:
+                    success = self.send_notification(summary_message)
+                    if success:
+                        result['sent'] = True
+                        result['notifications_sent'] = 1
+            
+        except Exception as e:
+            result['error'] = str(e)
+            logger.error(f"Error enviando notificación bulk a {self.platform_name}: {e}")
+        
+        return result
+    
+    def _create_summary_message(self, products: List[Product], title: str) -> str:
+        """Crear mensaje resumen cuando no hay productos que cumplan filtros"""
+        if not products:
+            return ""
+        
+        # Usar plantilla compacta para resumen
+        summary_data = template_engine.render_notification(
+            template_name="compact",
+            product=products[0],  # Usar primer producto como ejemplo
+            priority=NotificationPriority.LOW,
+            platform=self.platform_name
+        )
+        
+        message = f"� **{title}** ({len(products)} productos encontrados)\n\n"
+        message += "Los productos no cumplen los filtros activos para notificaciones individuales.\n\n"
+        
+        # Mostrar estadísticas
+        categories = {}
+        total_products = len(products)
+        avg_price = sum(float(p.price or 0) for p in products) / total_products if total_products > 0 else 0
+        
+        for product in products:
+            cat = product.category or "Sin categoría"
+            categories[cat] = categories.get(cat, 0) + 1
+        
+        message += f"📊 **Estadísticas:**\n"
+        message += f"• Total productos: {total_products}\n"
+        message += f"• Precio promedio: ${avg_price:.2f}\n"
+        message += f"• Categorías principales: {', '.join(list(categories.keys())[:3])}\n"
+        
         return message
     
-    def format_bulk_message(self, products: List[Product]) -> str:
-        """Formatear mensaje para múltiples productos"""
-        if not products:
-            return "No hay productos nuevos."
-        
-        count = len(products)
-        avg_price = sum(p.price for p in products) / count
-        platforms = list(set(p.source_platform for p in products))
-        
-        message = f"""
-🛍️ **{count} Nuevos Productos Encontrados**
-
-📊 **Resumen:**
-💰 Precio promedio: ${avg_price:.2f}
-🌐 Plataformas: {', '.join(platforms)}
-
-📝 **Productos:**
-        """.strip()
-        
-        for i, product in enumerate(products[:5], 1):  # Máximo 5 productos
-            message += f"\n{i}. {product.title} - ${product.price}"
-        
-        if count > 5:
-            message += f"\n... y {count - 5} productos más"
-        
-        return message
+    def format_product_message(self, product: Product) -> str:
+        """Formatear mensaje de producto (método legacy)"""
+        # Usar plantilla por defecto
+        notification_data = template_engine.render_notification(
+            template_name="default",
+            product=product,
+            priority=NotificationPriority.NORMAL,
+            platform=self.platform_name
+        )
+        return notification_data['body']
 
 
 class TelegramNotificationService(BaseNotificationService):
-    """Servicio de notificaciones para Telegram"""
+    """Servicio de notificaciones para Telegram con sistema avanzado"""
     
     def __init__(self):
+        super().__init__()
         self.bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', '')
         self.chat_id = getattr(settings, 'TELEGRAM_CHAT_ID', '')
-        super().__init__()
+        self.platform_name = "telegram"
+        self.enabled = self.is_configured()
     
     def is_configured(self) -> bool:
         """Verificar configuración de Telegram"""
         return bool(self.bot_token and self.chat_id)
     
-    def send_notification(self, message: str, parse_mode: str = 'Markdown') -> bool:
+    def send_notification(self, message: str, parse_mode: str = 'Markdown', **kwargs) -> bool:
         """
         Enviar notificación por Telegram
         
@@ -107,7 +239,7 @@ class TelegramNotificationService(BaseNotificationService):
             'chat_id': self.chat_id,
             'text': message,
             'parse_mode': parse_mode,
-            'disable_web_page_preview': True
+            'disable_web_page_preview': kwargs.get('disable_preview', True)
         }
         
         try:
@@ -120,28 +252,72 @@ class TelegramNotificationService(BaseNotificationService):
         except requests.exceptions.RequestException as e:
             logger.error(f"Error enviando notificación por Telegram: {e}")
             return False
+    
+    def _send_rendered_notification(self, notification_data: Dict[str, Any], product: Product) -> bool:
+        """Enviar notificación renderizada por Telegram"""
+        try:
+            # Obtener configuración de plataforma
+            platform_config = notification_data.get('platform_config', {})
+            parse_mode = platform_config.get('parse_mode', 'Markdown')
+            disable_preview = platform_config.get('disable_preview', True)
+            
+            # Enviar notificación
+            message = notification_data['body']
+            return self.send_notification(
+                message=message,
+                parse_mode=parse_mode,
+                disable_preview=disable_preview
+            )
+            
         except Exception as e:
-            logger.error(f"Error inesperado en Telegram: {e}")
+            logger.error(f"Error enviando notificación renderizada por Telegram: {e}")
             return False
+    
+    def format_bulk_message(self, products: List[Product], title: str = "Productos Encontrados") -> str:
+        """Formatear mensaje con múltiples productos (método legacy)"""
+        return self._create_summary_message(products, title)
+    
+    def get_notification_stats(self) -> Dict[str, Any]:
+        """Obtener estadísticas de notificaciones"""
+        stats = self.notification_stats.copy()
+        stats['platform'] = self.platform_name
+        stats['enabled'] = self.enabled
+        stats['last_sent_formatted'] = (
+            stats['last_sent'].strftime("%d/%m/%Y %H:%M:%S") 
+            if stats['last_sent'] else "Nunca"
+        )
+        return stats
+    
+    def reset_stats(self):
+        """Reiniciar estadísticas"""
+        self.notification_stats = {
+            'sent': 0,
+            'failed': 0,
+            'filtered': 0,
+            'last_sent': None
+        }
 
 
 class DiscordNotificationService(BaseNotificationService):
-    """Servicio de notificaciones para Discord"""
+    """Servicio de notificaciones para Discord con sistema avanzado"""
     
     def __init__(self):
-        self.webhook_url = getattr(settings, 'DISCORD_WEBHOOK_URL', '')
         super().__init__()
+        self.webhook_url = getattr(settings, 'DISCORD_WEBHOOK_URL', '')
+        self.platform_name = "discord"
+        self.enabled = self.is_configured()
     
     def is_configured(self) -> bool:
         """Verificar configuración de Discord"""
         return bool(self.webhook_url)
     
-    def send_notification(self, message: str, username: str = "Dropship Bot") -> bool:
+    def send_notification(self, message: str = None, embed: Dict[str, Any] = None, username: str = "Dropship Bot", **kwargs) -> bool:
         """
         Enviar notificación por Discord
         
         Args:
-            message: Mensaje a enviar
+            message: Mensaje a enviar (texto simple)
+            embed: Embed de Discord (formato rico)
             username: Nombre del bot
             
         Returns:
@@ -152,9 +328,14 @@ class DiscordNotificationService(BaseNotificationService):
             return False
         
         payload = {
-            'content': message,
             'username': username
         }
+        
+        if message:
+            payload['content'] = message
+        
+        if embed:
+            payload['embeds'] = [embed] if not isinstance(embed, list) else embed
         
         try:
             response = requests.post(self.webhook_url, json=payload, timeout=30)
@@ -166,9 +347,52 @@ class DiscordNotificationService(BaseNotificationService):
         except requests.exceptions.RequestException as e:
             logger.error(f"Error enviando notificación por Discord: {e}")
             return False
+    
+    def _send_rendered_notification(self, notification_data: Dict[str, Any], product: Product) -> bool:
+        """Enviar notificación renderizada por Discord"""
+        try:
+            platform_config = notification_data.get('platform_config', {})
+            
+            # Si la configuración incluye embeds, usar formato rico
+            if platform_config.get('embed', False) and 'embeds' in notification_data:
+                return self.send_notification(
+                    embed=notification_data['embeds'][0],
+                    username="Dropship Assistant 🛍️"
+                )
+            else:
+                # Usar mensaje de texto simple
+                return self.send_notification(
+                    message=notification_data['body'],
+                    username="Dropship Assistant 🛍️"
+                )
+                
         except Exception as e:
-            logger.error(f"Error inesperado en Discord: {e}")
+            logger.error(f"Error enviando notificación renderizada por Discord: {e}")
             return False
+    
+    def format_bulk_message(self, products: List[Product], title: str = "Productos Encontrados") -> str:
+        """Formatear mensaje con múltiples productos (método legacy)"""
+        return self._create_summary_message(products, title)
+    
+    def get_notification_stats(self) -> Dict[str, Any]:
+        """Obtener estadísticas de notificaciones"""
+        stats = self.notification_stats.copy()
+        stats['platform'] = self.platform_name
+        stats['enabled'] = self.enabled
+        stats['last_sent_formatted'] = (
+            stats['last_sent'].strftime("%d/%m/%Y %H:%M:%S") 
+            if stats['last_sent'] else "Nunca"
+        )
+        return stats
+    
+    def reset_stats(self):
+        """Reiniciar estadísticas"""
+        self.notification_stats = {
+            'sent': 0,
+            'failed': 0,
+            'filtered': 0,
+            'last_sent': None
+        }
     
     def format_product_message(self, product: Product) -> str:
         """Formatear mensaje para Discord (sin Markdown)"""
@@ -189,7 +413,7 @@ class DiscordNotificationService(BaseNotificationService):
 
 
 class NotificationManager:
-    """Gestor principal de notificaciones"""
+    """Gestor principal de notificaciones con sistema avanzado"""
     
     def __init__(self):
         self.services = {
@@ -205,15 +429,15 @@ class NotificationManager:
         
         logger.info(f"Servicios de notificación activos: {list(self.active_services.keys())}")
     
-    def notify_new_product(self, product: Product) -> Dict[str, bool]:
+    def notify_new_product(self, product: Product) -> Dict[str, Dict[str, Any]]:
         """
-        Notificar sobre un nuevo producto
+        Notificar sobre un nuevo producto usando sistema avanzado
         
         Args:
             product: Producto a notificar
             
         Returns:
-            Dict: Resultado de envío por cada servicio
+            Dict: Resultado detallado de envío por cada servicio
         """
         if not self.active_services:
             logger.warning("No hay servicios de notificación configurados")
@@ -223,34 +447,38 @@ class NotificationManager:
         
         for service_name, service in self.active_services.items():
             try:
-                message = service.format_product_message(product)
-                success = service.send_notification(message)
-                results[service_name] = success
+                result = service.send_product_notification(product)
+                results[service_name] = result
                 
-                if success:
-                    logger.info(f"Notificación de producto enviada por {service_name}")
+                if result['sent']:
+                    logger.info(f"Producto notificado exitosamente a {service_name}")
+                elif result['filtered']:
+                    logger.debug(f"Producto filtrado para {service_name}: {result['error']}")
                 else:
-                    logger.error(f"Error enviando notificación por {service_name}")
+                    logger.warning(f"Fallo notificando producto a {service_name}: {result['error']}")
                     
             except Exception as e:
-                logger.error(f"Error inesperado notificando por {service_name}: {e}")
-                results[service_name] = False
+                logger.error(f"Error notificando producto a {service_name}: {e}")
+                results[service_name] = {
+                    'sent': False,
+                    'filtered': False,
+                    'error': str(e),
+                    'platform': service_name
+                }
         
         return results
     
-    def notify_bulk_products(self, products: List[Product]) -> Dict[str, bool]:
+    def notify_bulk_products(self, products: List[Product], title: str = "Productos Encontrados") -> Dict[str, Dict[str, Any]]:
         """
-        Notificar sobre múltiples productos
+        Notificar múltiples productos
         
         Args:
-            products: Lista de productos a notificar
+            products: Lista de productos
+            title: Título para la notificación
             
         Returns:
             Dict: Resultado de envío por cada servicio
         """
-        if not products:
-            return {}
-        
         if not self.active_services:
             logger.warning("No hay servicios de notificación configurados")
             return {}
@@ -259,18 +487,16 @@ class NotificationManager:
         
         for service_name, service in self.active_services.items():
             try:
-                message = service.format_bulk_message(products)
-                success = service.send_notification(message)
-                results[service_name] = success
-                
-                if success:
-                    logger.info(f"Notificación masiva enviada por {service_name} ({len(products)} productos)")
-                else:
-                    logger.error(f"Error enviando notificación masiva por {service_name}")
-                    
+                result = service.send_bulk_notification(products, title)
+                results[service_name] = result
             except Exception as e:
-                logger.error(f"Error inesperado en notificación masiva por {service_name}: {e}")
-                results[service_name] = False
+                logger.error(f"Error enviando bulk a {service_name}: {e}")
+                results[service_name] = {
+                    'sent': False,
+                    'error': str(e),
+                    'products_processed': len(products),
+                    'notifications_sent': 0
+                }
         
         return results
     
@@ -280,23 +506,20 @@ class NotificationManager:
         
         Args:
             total_new: Productos nuevos encontrados
-            total_existing: Productos que ya existían
-            total_errors: Errores durante el scraping
+            total_existing: Productos ya existentes
+            total_errors: Errores en el scraping
             
         Returns:
             Dict: Resultado de envío por cada servicio
         """
-        if not self.active_services:
-            return {}
-        
         message = f"""
 📊 **Resumen de Scraping**
 
-✅ Productos nuevos: {total_new}
-♻️ Productos existentes: {total_existing}
-❌ Errores: {total_errors}
+✅ **Nuevos productos:** {total_new}
+🔄 **Ya existentes:** {total_existing}
+❌ **Errores:** {total_errors}
 
-⏰ {timezone.now().strftime('%d/%m/%Y %H:%M')}
+⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}
         """.strip()
         
         results = {}
@@ -319,11 +542,17 @@ class NotificationManager:
             Dict: Resultado de prueba por cada servicio
         """
         test_message = f"""
-🧪 **Test de Notificaciones**
+🧪 **Test de Notificaciones Avanzadas**
 
-Este es un mensaje de prueba del sistema de notificaciones del Dropship Bot.
+Sistema de notificaciones con filtros y plantillas funcionando correctamente.
 
-⏰ {timezone.now().strftime('%d/%m/%Y %H:%M')}
+🔧 **Características activas:**
+• Filtros inteligentes de productos
+• Plantillas personalizadas
+• Rate limiting y programación
+• Múltiples plataformas
+
+⏰ {datetime.now().strftime('%d/%m/%Y %H:%M')}
         """.strip()
         
         results = {}
@@ -341,22 +570,57 @@ Este es un mensaje de prueba del sistema de notificaciones del Dropship Bot.
                 results[service_name] = False
         
         return results
+    
+    def get_system_stats(self) -> Dict[str, Any]:
+        """Obtener estadísticas del sistema de notificaciones"""
+        stats = {
+            'services': {},
+            'filters': filter_engine.get_rules_summary(),
+            'templates': template_engine.get_templates_summary(),
+            'total_active_services': len(self.active_services)
+        }
+        
+        for service_name, service in self.services.items():
+            stats['services'][service_name] = service.get_notification_stats()
+        
+        return stats
+    
+    def reset_all_stats(self):
+        """Reiniciar estadísticas de todos los servicios"""
+        for service in self.services.values():
+            service.reset_stats()
+        logger.info("Estadísticas de notificaciones reiniciadas")
 
 
 # Instancia global del gestor
 notification_manager = NotificationManager()
 
 
-def notify_new_product(product: Product) -> Dict[str, bool]:
+def notify_new_product(product: Product) -> Dict[str, Dict[str, Any]]:
     """Función conveniente para notificar un nuevo producto"""
     return notification_manager.notify_new_product(product)
 
 
-def notify_bulk_products(products: List[Product]) -> Dict[str, bool]:
+def notify_bulk_products(products: List[Product], title: str = "Productos Encontrados") -> Dict[str, Dict[str, Any]]:
     """Función conveniente para notificar múltiples productos"""
-    return notification_manager.notify_bulk_products(products)
+    return notification_manager.notify_bulk_products(products, title)
 
 
 def notify_scraping_summary(total_new: int, total_existing: int, total_errors: int = 0) -> Dict[str, bool]:
     """Función conveniente para notificar resumen de scraping"""
     return notification_manager.notify_scraping_summary(total_new, total_existing, total_errors)
+
+
+def test_all_notifications() -> Dict[str, bool]:
+    """Función conveniente para probar todas las notificaciones"""
+    return notification_manager.test_notifications()
+
+
+def get_notification_system_stats() -> Dict[str, Any]:
+    """Función conveniente para obtener estadísticas del sistema"""
+    return notification_manager.get_system_stats()
+
+
+def reset_notification_stats():
+    """Función conveniente para reiniciar estadísticas"""
+    notification_manager.reset_all_stats()
