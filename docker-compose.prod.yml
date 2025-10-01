@@ -1,4 +1,4 @@
-# 🏭 Docker Compose - Configuración de Producción
+# 🏭 Docker Compose - Configuración de Producción Optimizada
 # Archivo adicional para configuración de producción
 # Uso: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
@@ -6,37 +6,187 @@ version: '3.8'
 
 services:
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      args:
+        BUILD_DATE: ${BUILD_DATE:-now}
+        VERSION: ${VERSION:-latest}
+        REVISION: ${REVISION:-unknown}
     environment:
       - DEBUG=False
       - SECRET_KEY=${SECRET_KEY}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
       - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
-    command: ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "dropship_bot.wsgi:application"]
-    restart: always
+      - REDIS_URL=redis://redis:6379/0
+      - DJANGO_ENV=production
+      - GUNICORN_WORKERS=3
+      - ENABLE_CRON=true
+      # Superusuario automático
+      - DJANGO_SUPERUSER_USERNAME=${ADMIN_USERNAME:-admin}
+      - DJANGO_SUPERUSER_PASSWORD=${ADMIN_PASSWORD:-admin123}
+      - DJANGO_SUPERUSER_EMAIL=${ADMIN_EMAIL:-admin@localhost}
+    command: ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "--max-requests", "1000", "--max-requests-jitter", "100", "--access-logfile", "-", "--error-logfile", "-", "dropship_bot.wsgi:application"]
+    restart: unless-stopped
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/static
+      - backup_data:/app/backups
+      - log_data:/app/logs
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     
   db:
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${DATABASE_NAME}
       POSTGRES_USER: ${DATABASE_USER}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      # Optimizaciones de PostgreSQL para producción
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - backup_data:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
     
   nginx:
-    restart: always
+    restart: unless-stopped
     environment:
       - NGINX_HOST=${NGINX_HOST:-localhost}
+      - NGINX_PORT=${NGINX_PORT:-80}
     volumes:
       - ./certs:/etc/nginx/certs:ro
+      - static_data:/app/static:ro
+      - media_data:/app/media:ro
+      - log_data:/var/log/nginx
     ports:
       - "80:80"
       - "443:443"
+    depends_on:
+      - app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     
   redis:
-    restart: always
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 300
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-# Configuración adicional para producción
+  # Servicio de monitoreo
+  monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    environment:
+      - DJANGO_SETTINGS_MODULE=dropship_bot.settings
+      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+    command: ["python", "monitor_production.py", "--continuous", "300"]
+    restart: unless-stopped
+    volumes:
+      - log_data:/app/logs
+    depends_on:
+      - app
+      - db
+      - redis
+
+  # Servicio de backup automático
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    environment:
+      - DJANGO_SETTINGS_MODULE=dropship_bot.settings
+      - DATABASE_URL=postgresql://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+    volumes:
+      - backup_data:/app/backups
+      - postgres_data:/postgres_data:ro
+    depends_on:
+      - db
+    # Ejecutar backup diario a las 2 AM
+    entrypoint: >
+      /bin/bash -c "
+      while true; do
+        sleep $$(( (24*60*60) - ($$(date +%s) % (24*60*60)) + (2*60*60) ));
+        python backup_production.py backup;
+      done
+      "
+
+# Configuración de redes
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Volúmenes persistentes optimizados para producción
 volumes:
   postgres_data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/postgres
   redis_data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+  media_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./media
+  static_data:
+    driver: local
+  backup_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./backups
+  log_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
