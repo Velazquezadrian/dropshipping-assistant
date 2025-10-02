@@ -3,7 +3,7 @@ Serializers para la API REST de productos
 """
 
 from rest_framework import serializers
-from .models import Product
+from .models import Product, ScrapeJob
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -121,3 +121,19 @@ class HealthCheckSerializer(serializers.Serializer):
     database = serializers.CharField()
     products_count = serializers.IntegerField()
     last_scrape = serializers.DateTimeField(allow_null=True)
+
+
+class ScrapeJobSerializer(serializers.ModelSerializer):
+    duration_seconds = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ScrapeJob
+        fields = [
+            'id', 'task_id', 'query', 'source', 'status', 'requested_pages',
+            'returned_items', 'created_items', 'progress', 'error', 'meta',
+            'started_at', 'finished_at', 'created_at', 'duration_seconds'
+        ]
+        read_only_fields = fields
+
+    def get_duration_seconds(self, obj):  # pragma: no cover simple accessor
+        return obj.duration_seconds()

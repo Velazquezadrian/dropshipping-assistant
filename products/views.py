@@ -9,17 +9,20 @@ from django.db.models import Avg, Min, Max, Count
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
+from celery.result import AsyncResult
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Product
+from .models import Product, ScrapeJob
 from .serializers import (
-    ProductSerializer, 
-    ProductCreateSerializer, 
+    ProductSerializer,
+    ProductCreateSerializer,
     ProductListSerializer,
     ProductStatsSerializer,
-    HealthCheckSerializer
+    HealthCheckSerializer,
+    ScrapeJobSerializer,
 )
 from .services.filters import create_filter_from_params
 
@@ -224,3 +227,95 @@ class HealthCheckViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
             )
+
+
+class AsyncScrapeLaunchView(APIView):
+    """Lanza tarea Celery de scraping asincrónico."""
+    def post(self, request):
+        payload = request.data or {}
+        query = payload.get('query')
+        if not query:
+            return Response({'error': 'query es requerido'}, status=400)
+        source = payload.get('source', 'aliexpress_advanced')
+        max_pages = int(payload.get('max_pages', 1))
+        # Crear ScrapeJob
+        job = ScrapeJob.objects.create(
+            query=query,
+            source=source,
+            requested_pages=max_pages,
+        )
+        from .tasks import scrape_products_async  # import diferido
+        task = scrape_products_async.delay(query=query, source=source, max_pages=max_pages, job_id=str(job.id))
+        job.task_id = task.id
+        job.save(update_fields=['task_id'])
+        return Response({'task_id': task.id, 'job_id': str(job.id), 'status': 'submitted'})
+
+
+class AsyncScrapeStatusView(APIView):
+    """Retorna estado y resultado (si listo) de una tarea Celery."""
+    def get(self, request, task_id: str):
+        result = AsyncResult(task_id)
+        data = {
+            'task_id': task_id,
+            'state': result.state,
+        }
+        if result.successful():
+            data['result'] = result.result
+        elif result.failed():
+            data['error'] = str(result.result)
+        return Response(data)
+
+
+class ScrapeJobListView(APIView):
+    """Listado de jobs de scraping (paginación simple via query params: limit/offset)."""
+    def get(self, request):
+        limit = int(request.query_params.get('limit', 20))
+        offset = int(request.query_params.get('offset', 0))
+        qs = ScrapeJob.objects.all()
+        total = qs.count()
+        jobs = qs[offset:offset+limit]
+        serializer = ScrapeJobSerializer(jobs, many=True)
+        return Response({
+            'count': total,
+            'limit': limit,
+            'offset': offset,
+            'results': serializer.data
+        })
+
+
+class ScrapeJobDetailView(APIView):
+    """Detalle de un job específico."""
+    def get(self, request, pk: str):
+        try:
+            job = ScrapeJob.objects.get(pk=pk)
+        except ScrapeJob.DoesNotExist:
+            return Response({'error': 'ScrapeJob no encontrado'}, status=404)
+        serializer = ScrapeJobSerializer(job)
+        return Response(serializer.data)
+
+
+class ScrapeJobCancelView(APIView):
+    """Cancelar un job de scraping en curso (revocar tarea Celery)."""
+    def post(self, request, pk: str):
+        try:
+            job = ScrapeJob.objects.get(pk=pk)
+        except ScrapeJob.DoesNotExist:
+            return Response({'error': 'ScrapeJob no encontrado'}, status=404)
+
+        if job.status in [ScrapeJob.Status.SUCCESS, ScrapeJob.Status.FAILURE, ScrapeJob.Status.REVOKED]:
+            return Response({'error': f'No se puede cancelar un job con estado {job.status}'}, status=400)
+
+        if not job.task_id:
+            job.mark_revoked()
+            return Response({'status': 'revoked', 'detail': 'Job sin task_id asociado; marcado como REVOKED localmente'})
+
+        try:
+            from celery.app.control import Control
+            from django.conf import settings as dj_settings
+            # Usar la app registrada en celery.py
+            from dropship_bot.celery import app as celery_app
+            celery_app.control.revoke(job.task_id, terminate=True)
+            job.mark_revoked()
+            return Response({'status': 'revoked', 'task_id': job.task_id})
+        except Exception as e:
+            return Response({'error': f'Error al revocar: {e}'}, status=500)

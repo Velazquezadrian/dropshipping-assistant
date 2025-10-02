@@ -670,6 +670,7 @@ class ScraperFactory:
     scrapers = {
         'mock': MockScraper,
         'aliexpress': AliExpressScraper,
+        'aliexpress_advanced': 'advanced_scraper.AdvancedAliExpressScraper',  # Importación lazy
     }
     
     @classmethod
@@ -687,6 +688,17 @@ class ScraperFactory:
         if not scraper_class:
             logger.warning(f"Plataforma {platform} no encontrada, usando MockScraper")
             scraper_class = MockScraper
+            return scraper_class()
+        
+        # Manejar importación lazy para el scraper avanzado
+        if isinstance(scraper_class, str):
+            module_path, class_name = scraper_class.rsplit('.', 1)
+            try:
+                from . import advanced_scraper
+                scraper_class = getattr(advanced_scraper, class_name)
+            except ImportError as e:
+                logger.error(f"Error importando scraper avanzado: {e}")
+                scraper_class = AliExpressScraper
         
         return scraper_class()
     

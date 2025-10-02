@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -30,7 +31,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-&i$d#3#(yo!a3cr%$#3heku888
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
 
 # Security settings for production
 if not DEBUG:
@@ -88,15 +89,59 @@ TEMPLATES = [
 WSGI_APPLICATION = 'dropship_bot.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+"""
+Database configuration
+Prioridad:
+1. DATABASE_URL (postgresql / mysql / sqlite)
+2. Fallback a sqlite local
+"""
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+def parse_database_url(db_url: str):
+    parsed = urlparse(db_url)
+    engine_map = {
+        'postgres': 'django.db.backends.postgresql',
+        'postgresql': 'django.db.backends.postgresql',
+        'pgsql': 'django.db.backends.postgresql',
+        'mysql': 'django.db.backends.mysql',
+        'sqlite': 'django.db.backends.sqlite3'
     }
-}
+    scheme = parsed.scheme.split('+')[0]
+    engine = engine_map.get(scheme)
+    if not engine:
+        raise ValueError(f"Unsupported database scheme: {scheme}")
+    if engine == 'django.db.backends.sqlite3':
+        return {
+            'ENGINE': engine,
+            'NAME': parsed.path if parsed.path else (BASE_DIR / 'db.sqlite3'),
+        }
+    return {
+        'ENGINE': engine,
+        'NAME': parsed.path.lstrip('/'),
+        'USER': parsed.username,
+        'PASSWORD': parsed.password,
+        'HOST': parsed.hostname,
+        'PORT': parsed.port or '',
+    }
+
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    try:
+        DATABASES = { 'default': parse_database_url(DATABASE_URL) }
+    except Exception as e:
+        # Fallback a sqlite si la URL es inválida
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -123,7 +168,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Time zone configurable vía env
+TIME_ZONE = os.getenv('TIME_ZONE', 'UTC')
 
 USE_I18N = True
 
@@ -133,8 +179,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'static'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -144,12 +193,25 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Django REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'PAGE_SIZE': int(os.getenv('API_PAGE_SIZE', '20')),
     'DEFAULT_FILTER_BACKENDS': [
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
 }
+
+# Celery (usar Redis como broker y backend si está disponible)
+REDIS_URL = os.getenv('REDIS_URL')  # asegurar disponible antes
+if REDIS_URL:
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+    CELERY_TASK_SERIALIZER = 'json'
+    CELERY_RESULT_SERIALIZER = 'json'
+    CELERY_ACCEPT_CONTENT = ['json']
+    CELERY_TIMEZONE = TIME_ZONE
+    CELERY_TASK_TRACK_STARTED = True
+    CELERY_TASK_TIME_LIMIT = int(os.getenv('CELERY_TASK_TIME_LIMIT', '900'))  # 15 min
+    CELERY_TASK_SOFT_TIME_LIMIT = int(os.getenv('CELERY_TASK_SOFT_TIME_LIMIT', '600'))  # 10 min
 
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
@@ -180,7 +242,7 @@ LOGGING = {
             'filename': BASE_DIR / 'dropship_bot.log',
         },
         'console': {
-            'level': 'DEBUG',
+            'level': os.getenv('LOG_LEVEL', 'DEBUG'),
             'class': 'logging.StreamHandler',
         },
     },
@@ -192,3 +254,45 @@ LOGGING = {
         },
     },
 }
+
+# Cache (Redis) opcional (reutiliza REDIS_URL ya definido)
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+            'TIMEOUT': 60 * 15,
+            'OPTIONS': {
+                'ssl_cert_reqs': None
+            }
+        }
+    }
+
+# CSRF Trusted Origins configurable (para HTTPS en producción)
+csrf_origins_env = os.getenv('CSRF_TRUSTED_ORIGINS')
+if csrf_origins_env:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in csrf_origins_env.split(',') if o.strip()]
+elif not DEBUG:
+    # Construir automáticamente usando ALLOWED_HOSTS
+    CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in ALLOWED_HOSTS if not h.startswith('localhost') and not h.startswith('127.')]
+
+if not DEBUG:
+    # Cabecera para detección de SSL detrás de proxy (nginx / load balancer)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+
+# Sentry (monitoring) opcional
+SENTRY_DSN = os.getenv('SENTRY_DSN')
+if SENTRY_DSN and not DEBUG:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
+        sentry_sdk.init(
+            dsn=SENTRY_DSN,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=float(os.getenv('SENTRY_TRACES_SAMPLE_RATE', '0.25')),
+            send_default_pii=True
+        )
+    except ImportError:
+        # Sentry no instalado, continuar sin monitoreo
+        pass
