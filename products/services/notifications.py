@@ -309,7 +309,7 @@ class DiscordNotificationService(BaseNotificationService):
     
     def is_configured(self) -> bool:
         """Verificar configuración de Discord"""
-        return bool(self.webhook_url)
+        return bool(self.webhook_url and self.webhook_url.strip())
     
     def send_notification(self, message: str = None, embed: Dict[str, Any] = None, username: str = "Dropship Bot", **kwargs) -> bool:
         """
@@ -324,8 +324,12 @@ class DiscordNotificationService(BaseNotificationService):
             bool: True si se envió correctamente
         """
         if not self.enabled:
-            logger.warning("Discord no está configurado correctamente")
-            return False
+            logger.debug("Discord webhook no configurado - saltando notificación")
+            return True  # Retornar True para no marcar como error
+        
+        if not self.webhook_url.strip():
+            logger.debug("Discord webhook vacío - saltando notificación")
+            return True  # Retornar True para no marcar como error
         
         payload = {
             'username': username
@@ -344,6 +348,14 @@ class DiscordNotificationService(BaseNotificationService):
             logger.info("Notificación enviada por Discord exitosamente")
             return True
             
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:
+                logger.warning("Discord webhook no autorizado (401) - verifica la URL del webhook")
+                # Desactivar temporalmente para evitar spam de errores
+                self.enabled = False
+            else:
+                logger.error(f"Error HTTP enviando notificación por Discord: {e}")
+            return False
         except requests.exceptions.RequestException as e:
             logger.error(f"Error enviando notificación por Discord: {e}")
             return False

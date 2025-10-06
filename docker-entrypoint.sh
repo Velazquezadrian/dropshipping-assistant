@@ -59,6 +59,28 @@ wait_for_db() {
     log_info "Base de datos disponible ✅"
 }
 
+# Esperar a Redis (para workers de Celery)
+wait_for_redis() {
+    log_info "Esperando a que Redis esté disponible..."
+    
+    while ! python -c "
+import redis
+import os
+redis_url = os.environ.get('REDIS_URL', 'redis://redis:6379/1')
+try:
+    r = redis.from_url(redis_url)
+    r.ping()
+    print('Redis OK')
+except:
+    exit(1)
+" >/dev/null 2>&1; do
+        log_warning "Redis no disponible, esperando 5 segundos..."
+        sleep 5
+    done
+    
+    log_info "Redis disponible ✅"
+}
+
 # Ejecutar migraciones de base de datos
 run_migrations() {
     log_info "Ejecutando migraciones de base de datos..."
@@ -116,6 +138,17 @@ initialize() {
     log_info "=== INICIALIZACIÓN COMPLETADA ==="
 }
 
+# Inicialización ligera para workers
+initialize_worker() {
+    log_info "=== INICIALIZANDO WORKER ==="
+    
+    check_env_vars
+    wait_for_redis
+    wait_for_db  # También necesita DB para almacenar resultados de jobs
+    
+    log_info "=== WORKER LISTO ==="
+}
+
 # Manejo de señales para shutdown graceful
 cleanup() {
     log_info "Recibida señal de terminación, cerrando aplicación..."
@@ -128,6 +161,10 @@ trap cleanup SIGTERM SIGINT
 if [ "$1" = "initialize" ]; then
     initialize
     exit 0
+elif [ "$1" = "worker" ]; then
+    initialize_worker
+    shift
+    exec "$@"
 elif [ "$1" = "migrate" ]; then
     wait_for_db
     run_migrations

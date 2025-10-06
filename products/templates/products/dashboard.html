@@ -1,0 +1,492 @@
+{% extends 'products/base.html' %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-5 fw-bold text-primary">
+            <i class="fas fa-chart-line me-3"></i>Dashboard de Productos
+        </h1>
+        <p class="lead">Análisis en tiempo real del sistema de scraping</p>
+    </div>
+</div>
+
+<!-- Estadísticas Principales -->
+<div id="mainStats" class="stats-grid">
+    <div class="loading text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Cargando estadísticas...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-calendar-alt me-2"></i>Productos por Día
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tags me-2"></i>Distribución por Categorías
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tablas de Top Productos -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card dashboard-card">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-star me-2"></i>Top Productos
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Tabs -->
+                <ul class="nav nav-tabs mb-3" id="topProductsTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#topRated">
+                            <i class="fas fa-star me-1"></i>Mejor Valorados
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#cheapest">
+                            <i class="fas fa-dollar-sign me-1"></i>Más Baratos
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#expensive">
+                            <i class="fas fa-gem me-1"></i>Más Caros
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Content -->
+                <div class="tab-content" id="topProductsContent">
+                    <div class="tab-pane fade show active" id="topRated">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th>Precio</th>
+                                        <th>Rating</th>
+                                        <th>Categoría</th>
+                                        <th>Plataforma</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topRatedTable">
+                                    <tr><td colspan="5" class="text-center">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="cheapest">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th>Precio</th>
+                                        <th>Rating</th>
+                                        <th>Categoría</th>
+                                        <th>Plataforma</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cheapestTable">
+                                    <tr><td colspan="5" class="text-center">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="expensive">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Producto</th>
+                                        <th>Precio</th>
+                                        <th>Rating</th>
+                                        <th>Categoría</th>
+                                        <th>Plataforma</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expensiveTable">
+                                    <tr><td colspan="5" class="text-center">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Estado del Sistema -->
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-heartbeat me-2"></i>Estado del Sistema
+                </h5>
+            </div>
+            <div class="card-body" id="systemStatus">
+                <div class="loading">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="visually-hidden">Verificando estado...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card dashboard-card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clock me-2"></i>Actividad Reciente
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let dailyChart, categoryChart, hourlyChart;
+
+// Cargar dashboard al iniciar
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    loadSystemStatus();
+    updateLastUpdate();
+});
+
+// Función principal para cargar datos del dashboard
+async function loadDashboardData() {
+    try {
+        const response = await fetch('/api/dashboard/stats/');
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Error al cargar datos');
+        }
+        
+        renderMainStats(data.summary);
+        renderTopProducts(data.top_lists);
+        renderDailyChart(data.charts.daily_products);
+        renderCategoryChart(data.charts.category_distribution);
+        renderHourlyChart(data.charts.hourly_products);
+        
+    } catch (error) {
+        console.error('Error cargando dashboard:', error);
+        showError('No se pudieron cargar los datos del dashboard');
+    }
+}
+
+// Renderizar estadísticas principales
+function renderMainStats(stats) {
+    const statsContainer = document.getElementById('mainStats');
+    
+    const changeClass = stats.change_from_yesterday >= 0 ? 'text-success' : 'text-danger';
+    const changeIcon = stats.change_from_yesterday >= 0 ? 'arrow-up' : 'arrow-down';
+    
+    statsContainer.innerHTML = `
+        <div class="card dashboard-card metric-card">
+            <div class="card-body text-center">
+                <i class="fas fa-boxes fa-2x mb-3"></i>
+                <h3 class="fw-bold">${formatNumber(stats.total_products)}</h3>
+                <p class="mb-0">Total de Productos</p>
+            </div>
+        </div>
+        <div class="card dashboard-card">
+            <div class="card-body text-center">
+                <i class="fas fa-calendar-day fa-2x mb-3 text-primary"></i>
+                <h3 class="fw-bold">${formatNumber(stats.products_today)}</h3>
+                <p class="mb-1">Productos Hoy</p>
+                <small class="${changeClass}">
+                    <i class="fas fa-${changeIcon}"></i>
+                    ${Math.abs(stats.change_from_yesterday).toFixed(1)}% vs ayer
+                </small>
+            </div>
+        </div>
+        <div class="card dashboard-card">
+            <div class="card-body text-center">
+                <i class="fas fa-calendar-week fa-2x mb-3 text-success"></i>
+                <h3 class="fw-bold">${formatNumber(stats.products_this_week)}</h3>
+                <p class="mb-0">Esta Semana</p>
+            </div>
+        </div>
+        <div class="card dashboard-card">
+            <div class="card-body text-center">
+                <i class="fas fa-dollar-sign fa-2x mb-3 text-warning"></i>
+                <h3 class="fw-bold">${formatPrice(stats.average_price)}</h3>
+                <p class="mb-0">Precio Promedio</p>
+            </div>
+        </div>
+        <div class="card dashboard-card">
+            <div class="card-body text-center">
+                <i class="fas fa-tag fa-2x mb-3 text-info"></i>
+                <h3 class="fw-bold">${formatPrice(stats.min_price)}</h3>
+                <p class="mb-0">Precio Mínimo</p>
+            </div>
+        </div>
+        <div class="card dashboard-card">
+            <div class="card-body text-center">
+                <i class="fas fa-gem fa-2x mb-3 text-danger"></i>
+                <h3 class="fw-bold">${formatPrice(stats.max_price)}</h3>
+                <p class="mb-0">Precio Máximo</p>
+            </div>
+        </div>
+    `;
+}
+
+// Renderizar productos top
+function renderTopProducts(topLists) {
+    renderProductTable('topRatedTable', topLists.top_rated);
+    renderProductTable('cheapestTable', topLists.cheapest);
+    renderProductTable('expensiveTable', topLists.most_expensive);
+}
+
+function renderProductTable(tableId, products) {
+    const tbody = document.getElementById(tableId);
+    
+    if (products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay datos disponibles</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = products.map(product => `
+        <tr>
+            <td>
+                <div class="text-truncate" style="max-width: 250px;" title="${product.title}">
+                    ${product.title}
+                </div>
+            </td>
+            <td><strong>${formatPrice(product.price)}</strong></td>
+            <td>
+                <span class="badge bg-warning text-dark">
+                    <i class="fas fa-star me-1"></i>${product.rating}
+                </span>
+            </td>
+            <td>
+                <span class="badge badge-custom bg-secondary">
+                    ${product.category}
+                </span>
+            </td>
+            <td>
+                <span class="badge badge-custom bg-primary">
+                    ${product.source_platform}
+                </span>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Renderizar gráfico diario
+function renderDailyChart(data) {
+    const ctx = document.getElementById('dailyChart').getContext('2d');
+    
+    if (dailyChart) {
+        dailyChart.destroy();
+    }
+    
+    dailyChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(item => new Date(item.date).toLocaleDateString('es-ES')),
+            datasets: [{
+                label: 'Productos por Día',
+                data: data.map(item => item.count),
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Renderizar gráfico de categorías
+function renderCategoryChart(data) {
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    
+    if (categoryChart) {
+        categoryChart.destroy();
+    }
+    
+    const colors = [
+        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', 
+        '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF'
+    ];
+    
+    categoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.map(item => item.category),
+            datasets: [{
+                data: data.map(item => item.count),
+                backgroundColor: colors.slice(0, data.length),
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        usePointStyle: true
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Renderizar gráfico por horas
+function renderHourlyChart(data) {
+    const ctx = document.getElementById('hourlyChart').getContext('2d');
+    
+    if (hourlyChart) {
+        hourlyChart.destroy();
+    }
+    
+    hourlyChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.map(item => new Date(item.hour).toLocaleTimeString('es-ES', {hour: '2-digit'})),
+            datasets: [{
+                label: 'Productos por Hora',
+                data: data.map(item => item.count),
+                backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                borderColor: '#36A2EB',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Cargar estado del sistema
+async function loadSystemStatus() {
+    try {
+        const response = await fetch('/api/health/status/');
+        const data = await response.json();
+        
+        renderSystemStatus(data);
+        
+    } catch (error) {
+        console.error('Error cargando estado del sistema:', error);
+        document.getElementById('systemStatus').innerHTML = `
+            <div class="alert alert-danger alert-custom">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Error al verificar el estado del sistema
+            </div>
+        `;
+    }
+}
+
+function renderSystemStatus(status) {
+    const container = document.getElementById('systemStatus');
+    
+    const statusClass = status.status === 'ok' ? 'success' : 'danger';
+    const statusIcon = status.status === 'ok' ? 'check-circle' : 'exclamation-triangle';
+    
+    container.innerHTML = `
+        <div class="alert alert-${statusClass} alert-custom">
+            <h6 class="alert-heading">
+                <i class="fas fa-${statusIcon} me-2"></i>
+                Estado: ${status.status === 'ok' ? 'Operativo' : 'Error'}
+            </h6>
+            <hr>
+            <div class="row">
+                <div class="col-6">
+                    <strong>Base de Datos:</strong><br>
+                    <span class="badge bg-${status.database === 'ok' ? 'success' : 'danger'}">
+                        ${status.database === 'ok' ? 'Conectada' : 'Error'}
+                    </span>
+                </div>
+                <div class="col-6">
+                    <strong>Productos:</strong><br>
+                    ${formatNumber(status.products_count || 0)}
+                </div>
+            </div>
+            ${status.last_scrape ? `
+                <div class="mt-2">
+                    <strong>Último Scraping:</strong><br>
+                    <small class="text-muted">${formatDate(status.last_scrape)}</small>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Auto-refresh cada 30 segundos para datos en tiempo real
+setInterval(() => {
+    loadDashboardData();
+    loadSystemStatus();
+    updateLastUpdate();
+}, 30000);
+</script>
+{% endblock %}
