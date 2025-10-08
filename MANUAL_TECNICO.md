@@ -1,225 +1,446 @@
-# 🔧 Manual Técnico - Dropship Bot
+# Manual Técnico - Dropship Bot# 🔧 Manual Técnico - Dropship Bot
 
-## Documentación Técnica Completa
 
-Esta documentación está dirigida a desarrolladores, administradores de sistemas y personal técnico que necesitan entender, mantener, modificar o desplegar el sistema Dropship Bot.
+
+## 🏗️ Arquitectura del Sistema## Documentación Técnica Completa
+
+
+
+### Visión GeneralEsta documentación está dirigida a desarrolladores, administradores de sistemas y personal técnico que necesitan entender, mantener, modificar o desplegar el sistema Dropship Bot.
+
+Sistema de dropshipping modular construido con Django 5.2.6 que proporciona scraping real de AliExpress, filtrado inteligente y API REST completa con interfaz web.
 
 ---
+
+### Componentes Principales
 
 ## 📋 Índice
 
-1. [Arquitectura del Sistema](#arquitectura)
-2. [Instalación y Configuración](#instalacion)
-3. [Estructura del Código](#estructura)
-4. [API Reference](#api)
-5. [Base de Datos](#database)
-6. [Servicios y Módulos](#servicios)
-7. [Scraping Asíncrono](#async-scraping)
-8. [Dashboard y Analytics](#dashboard)
-9. [Sistema de Notificaciones](#notifications)
-10. [Testing](#testing)
-11. [Deployment con Docker](#deployment)
-12. [Monitoreo y Logs](#monitoring)
-13. [Troubleshooting](#troubleshooting)
-
----
-
-## 🏗️ Arquitectura del Sistema {#arquitectura}
-
-### Stack Tecnológico
-
 ```
-Frontend:     Django Templates + Bootstrap 5 + Chart.js
+
+dropship_bot/1. [Arquitectura del Sistema](#arquitectura)
+
+├── dropship_bot/          # Configuración principal Django2. [Instalación y Configuración](#instalacion)
+
+│   ├── settings.py        # Configuración del proyecto  3. [Estructura del Código](#estructura)
+
+│   ├── urls.py           # URLs principales4. [API Reference](#api)
+
+│   └── wsgi.py           # WSGI para despliegue5. [Base de Datos](#database)
+
+├── products/             # App principal de productos6. [Servicios y Módulos](#servicios)
+
+│   ├── models.py         # Modelos de datos7. [Scraping Asíncrono](#async-scraping)
+
+│   ├── views.py          # Vistas tradicionales8. [Dashboard y Analytics](#dashboard)
+
+│   ├── real_views.py     # Vistas para bot real9. [Sistema de Notificaciones](#notifications)
+
+│   ├── serializers.py    # Serializadores DRF10. [Testing](#testing)
+
+│   ├── urls.py           # URLs de productos11. [Deployment con Docker](#deployment)
+
+│   └── services/         # Lógica de negocio12. [Monitoreo y Logs](#monitoring)
+
+│       ├── real_aliexpress_bot.py  # Bot real de AliExpress13. [Troubleshooting](#troubleshooting)
+
+│       ├── scraper.py              # Scraper base
+
+│       ├── notifications.py        # Sistema de notificaciones---
+
+│       └── filters.py              # Filtros de productos
+
+├── templates/            # Templates HTML## 🏗️ Arquitectura del Sistema {#arquitectura}
+
+│   └── real_filter.html  # Interfaz web principal
+
+├── static/              # Archivos estáticos### Stack Tecnológico
+
+├── certs/               # Certificados SSL
+
+└── requirements.txt     # Dependencias```
+
+```Frontend:     Django Templates + Bootstrap 5 + Chart.js
+
 Backend:      Django 5.2.6 + Python 3.13
-Database:     SQLite (desarrollo) / PostgreSQL (producción)
+
+## 🔧 Componentes TécnicosDatabase:     SQLite (desarrollo) / PostgreSQL (producción)
+
 Cache:        Redis (producción)
-Queue:        Celery + Redis (producción)
-Monitoring:   Flower, Sentry
-Notifications: Telegram Bot API, Discord Webhooks
-Testing:      pytest-django, APITestCase
-Deploy:       Docker + Docker Compose
-```
 
-### Diagrama de Arquitectura
+### 1. Bot Real de AliExpressQueue:        Celery + Redis (producción)
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web Frontend  │    │  Notifications  │    │   Async Tasks   │
-│                 │    │                 │    │                 │
-│ - Dashboard     │    │ - Telegram Bot  │    │ - Celery Worker │
+**Archivo**: `products/services/real_aliexpress_bot.py`Monitoring:   Flower, Sentry
+
+- **Función**: Scraping real de productos de AliExpressNotifications: Telegram Bot API, Discord Webhooks
+
+- **Estrategias**: Múltiples métodos de búsqueda con fallbackTesting:      pytest-django, APITestCase
+
+- **Anti-detección**: Headers realistas, rotación de agentesDeploy:       Docker + Docker Compose
+
+- **Filtrado**: Precio, envío, rating en tiempo real```
+
+
+
+### 2. API REST### Diagrama de Arquitectura
+
+**Archivo**: `products/real_views.py`
+
+- **Endpoints**:```
+
+  - `POST /real-filter/` - Búsqueda de productos┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+
+  - `GET /real-filter/info/` - Información del sistema│   Web Frontend  │    │  Notifications  │    │   Async Tasks   │
+
+  - `GET /real-filter/quick-test/` - Test rápido│                 │    │                 │    │                 │
+
+  - `GET /real-filter-ui/` - Interfaz web│ - Dashboard     │    │ - Telegram Bot  │    │ - Celery Worker │
+
 │ - Analytics     │    │ - Discord       │    │ - Celery Beat   │
-│ - Bootstrap UI  │    │   Webhooks      │    │ - Redis Queue   │
-└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
-          │                      │                      │
-          ▼                      ▼                      ▼
-┌─────────────────────────────────────────────────────────────────┐
+
+### 3. Interfaz Web│ - Bootstrap UI  │    │   Webhooks      │    │ - Redis Queue   │
+
+**Archivo**: `templates/real_filter.html`└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+
+- **Framework**: Bootstrap 5          │                      │                      │
+
+- **Características**: Responsive, AJAX, indicadores en tiempo real          ▼                      ▼                      ▼
+
+- **Funcionalidad**: Formulario de búsqueda, filtros, resultados┌─────────────────────────────────────────────────────────────────┐
+
 │                    Django Application                           │
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   Models    │  │    Views    │  │ Serializers │             │
-│  │             │  │             │  │             │             │
-│  │ - Product   │  │ - ViewSets  │  │ - DRF       │             │
-│  │ - ScrapeJob │  │ - Dashboard │  │ - Jobs      │             │
+
+### 4. Sistema de Configuración│                                                                 │
+
+**Archivo**: `dropship_bot/settings.py`│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+
+- **Base de datos**: SQLite por defecto, escalable a PostgreSQL│  │   Models    │  │    Views    │  │ Serializers │             │
+
+- **Templates**: Configurado para carpeta templates/│  │             │  │             │  │             │             │
+
+- **Seguridad**: Headers SSL, CORS habilitado│  │ - Product   │  │ - ViewSets  │  │ - DRF       │             │
+
+- **Extensions**: django-extensions para HTTPS│  │ - ScrapeJob │  │ - Dashboard │  │ - Jobs      │             │
+
 │  └─────────────┘  └─────────────┘  └─────────────┘             │
-│                                                                 │
+
+## 📊 Modelos de Datos│                                                                 │
+
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  Services   │  │   Filters   │  │   Scrapers  │             │
-│  │             │  │             │  │             │             │
-│  │ - Managers  │  │ - Query     │  │ - Advanced  │             │
-│  │ - Notifs    │  │ - List      │  │ - Mock      │             │
-│  │ - Tasks     │  │ - Async     │  │ - Real      │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-              ┌─────────────────┐        ┌─────────────────┐
-              │   PostgreSQL    │        │      Redis      │
-              │                 │        │                 │
-              │ - Products      │        │ - Cache         │
-              │ - ScrapeJobs    │        │ - Queue         │
-              │ - Users         │        │ - Sessions      │
-              └─────────────────┘        └─────────────────┘
+
+### Product Model│  │  Services   │  │   Filters   │  │   Scrapers  │             │
+
+```python│  │             │  │             │  │             │             │
+
+class Product(models.Model):│  │ - Managers  │  │ - Query     │  │ - Advanced  │             │
+
+    title = CharField(max_length=500)│  │ - Notifs    │  │ - List      │  │ - Mock      │             │
+
+    price = DecimalField(max_digits=10, decimal_places=2)│  │ - Tasks     │  │ - Async     │  │ - Real      │             │
+
+    currency = CharField(max_length=3, default='USD')│  └─────────────┘  └─────────────┘  └─────────────┘             │
+
+    url = URLField(unique=True)  # Previene duplicados└─────────────────────────────────────────────────────────────────┘
+
+    image_url = URLField(blank=True)                                    │
+
+    rating = DecimalField(max_digits=3, decimal_places=2)                                    ▼
+
+    rating_count = IntegerField(default=0)              ┌─────────────────┐        ┌─────────────────┐
+
+    shipping_days = IntegerField(default=0)              │   PostgreSQL    │        │      Redis      │
+
+    category = CharField(max_length=100)              │                 │        │                 │
+
+    description = TextField(blank=True)              │ - Products      │        │ - Cache         │
+
+    created_at = DateTimeField(auto_now_add=True)              │ - ScrapeJobs    │        │ - Queue         │
+
+    updated_at = DateTimeField(auto_now=True)              │ - Users         │        │ - Sessions      │
+
+```              └─────────────────┘        └─────────────────┘
+
 ```
+
+## 🔄 Flujo de Datos
 
 ---
 
-## 🚀 Instalación y Configuración {#instalacion}
+### Búsqueda de Productos
 
-### Requisitos del Sistema
+1. **Entrada**: Usuario envía solicitud vía API o interfaz web## 🚀 Instalación y Configuración {#instalacion}
 
-```bash
-# Requisitos mínimos
+2. **Validación**: Validación de parámetros (keywords, precio, etc.)
+
+3. **Scraping**: Bot real intenta scraping de AliExpress### Requisitos del Sistema
+
+4. **Fallback**: Si falla, genera productos realistas
+
+5. **Filtrado**: Aplica filtros de precio, envío, rating```bash
+
+6. **Respuesta**: JSON con productos encontrados# Requisitos mínimos
+
 - Python 3.13+
-- 4GB RAM
-- 2GB espacio en disco
-- SO: Windows/Linux/macOS
 
-# Requisitos de producción
-- Python 3.13+
-- 8GB RAM
-- 20GB espacio en disco
-- PostgreSQL 16+
-- Redis 7+
-- Docker + Docker Compose
-```
+### Estructura de Respuesta API- 4GB RAM
 
-### Instalación Paso a Paso
+```json- 2GB espacio en disco
 
-#### 1. Clonar y Configurar Entorno
+{- SO: Windows/Linux/macOS
 
-```bash
-git clone [tu-repo]
-cd Dropshiping
+  "products": [
 
-# Crear entorno virtual
-python -m venv .venv
+    {# Requisitos de producción
 
-# Activar entorno
-# Windows
+      "title": "Wireless Gaming Mouse",- Python 3.13+
+
+      "price": "$29.99",- 8GB RAM
+
+      "currency": "USD",- 20GB espacio en disco
+
+      "url": "https://aliexpress.com/...",- PostgreSQL 16+
+
+      "image_url": "https://...",- Redis 7+
+
+      "rating": 4.5,- Docker + Docker Compose
+
+      "rating_count": 1250,```
+
+      "shipping_days": 15,
+
+      "category": "Electronics"### Instalación Paso a Paso
+
+    }
+
+  ],#### 1. Clonar y Configurar Entorno
+
+  "real_products": true,
+
+  "source": "aliexpress_real",```bash
+
+  "total_found": 5,git clone [tu-repo]
+
+  "filters_applied": {cd Dropshiping
+
+    "min_price": 15,
+
+    "max_price": 45,# Crear entorno virtual
+
+    "max_shipping_days": 30python -m venv .venv
+
+  }
+
+}# Activar entorno
+
+```# Windows
+
 .venv\Scripts\activate
-# Linux/Mac
+
+## 🛡️ Seguridad y HTTPS# Linux/Mac
+
 source .venv/bin/activate
-```
 
-#### 2. Instalar Dependencias
+### Configuración SSL```
 
-```bash
+- **Certificados**: Autofirmados en `certs/`
+
+- **Servidor**: django-extensions + Werkzeug#### 2. Instalar Dependencias
+
+- **Puerto**: 8443 para HTTPS
+
+- **Headers**: Configurados para seguridad```bash
+
 pip install -r requirements.txt
-```
 
-**requirements.txt completo:**
-```
-Django==5.2.6
+### Anti-detección Bot```
+
+- **User Agents**: Rotación de navegadores realistas
+
+- **Headers**: Accept, Accept-Language, Accept-Encoding**requirements.txt completo:**
+
+- **Delays**: Esperas aleatorias entre requests```
+
+- **Fallback**: Sistema robusto ante bloqueosDjango==5.2.6
+
 djangorestframework==3.16.1
-django-crontab==0.7.1
-django-filter==25.1
-requests==2.32.5
-python-telegram-bot==22.5
 
-# Para desarrollo
+## 🔨 Comandos de Desarrollodjango-crontab==0.7.1
+
+django-filter==25.1
+
+### Servidor de Desarrollorequests==2.32.5
+
+```bashpython-telegram-bot==22.5
+
+# HTTP (desarrollo)
+
+python manage.py runserver 127.0.0.1:8000# Para desarrollo
+
 coverage==7.6.9
-pytest-django==4.8.0
+
+# HTTPS (producción-like)pytest-django==4.8.0
+
+python manage.py runserver_plus --cert-file certs/cert.pem --key-file certs/key.pem 127.0.0.1:8443```
+
 ```
 
 #### 3. Variables de Entorno
 
-Crear `.env` (opcional):
-```bash
-# Django
-SECRET_KEY=tu-secret-key-super-segura-aqui
-DEBUG=True
-ALLOWED_HOSTS=localhost,127.0.0.1
+### Tests
 
-# Database (opcional - por defecto usa SQLite)
-DATABASE_URL=postgresql://user:pass@localhost:5432/dropship_db
+```bashCrear `.env` (opcional):
+
+# Test principal del bot real```bash
+
+python test_bot_real.py# Django
+
+SECRET_KEY=tu-secret-key-super-segura-aqui
+
+# Test de APIDEBUG=True
+
+python test_api_final.pyALLOWED_HOSTS=localhost,127.0.0.1
+
+
+
+# Demo completo# Database (opcional - por defecto usa SQLite)
+
+python demo_final_real.pyDATABASE_URL=postgresql://user:pass@localhost:5432/dropship_db
+
+```
 
 # Telegram
-TELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ
+
+## 🚀 DespliegueTELEGRAM_BOT_TOKEN=123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ
+
 TELEGRAM_CHAT_ID=123456789
 
-# Discord
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123/abc
+### Configuración de Producción
 
-# Logging
-LOG_LEVEL=INFO
+1. **Variables de entorno**: Configurar en `.env`# Discord
+
+2. **Base de datos**: Migrar a PostgreSQLDISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/123/abc
+
+3. **Servidor web**: Nginx + Gunicorn
+
+4. **SSL**: Certificados válidos# Logging
+
+5. **Monitoreo**: Logs y métricasLOG_LEVEL=INFO
+
 LOG_FILE=dropship_bot.log
-```
 
-#### 4. Configuración de Base de Datos
+### Variables de Entorno```
 
 ```bash
-# Aplicar migraciones
-python manage.py migrate
 
-# Crear superusuario (opcional)
+DEBUG=False#### 4. Configuración de Base de Datos
+
+DATABASE_URL=postgresql://user:pass@host:port/db
+
+SECRET_KEY=your-secret-key```bash
+
+ALLOWED_HOSTS=your-domain.com# Aplicar migraciones
+
+```python manage.py migrate
+
+
+
+## 🧪 Testing# Crear superusuario (opcional)
+
 python manage.py createsuperuser
-```
 
-#### 5. Verificar Instalación
+### Archivos de Test```
 
-```bash
+- `test_bot_real.py` - Test completo del bot real
+
+- `test_api_final.py` - Test de endpoints API#### 5. Verificar Instalación
+
+- `test_real_scraper.py` - Test del scraper
+
+- `demo_final_real.py` - Demostración funcional```bash
+
 # Ejecutar tests
-python manage.py test products
 
-# Iniciar servidor
-python manage.py runserver
+### Cobertura de Testspython manage.py test products
 
-# Probar API
-curl http://localhost:8000/health/
+- ✅ Scraping real de AliExpress
+
+- ✅ Sistema de fallback# Iniciar servidor
+
+- ✅ Endpoints APIpython manage.py runserver
+
+- ✅ Filtros de productos
+
+- ✅ Validación de datos# Probar API
+
+- ✅ Manejo de errorescurl http://localhost:8000/health/
+
 ```
+
+## 📈 Escalabilidad
 
 ---
 
-## 📁 Estructura del Código {#estructura}
+### Optimizaciones Futuras
 
-### Estructura de Directorios
+- **Cache**: Redis para resultados frecuentes## 📁 Estructura del Código {#estructura}
 
-```
+- **Queue**: Celery para scraping asíncrono
+
+- **CDN**: Para imágenes de productos### Estructura de Directorios
+
+- **Sharding**: Base de datos distribuida
+
+- **Rate Limiting**: Control de requests por API```
+
 dropship_bot/
-├── dropship_bot/               # Configuración principal
-│   ├── __init__.py
-│   ├── settings.py            # Configuraciones Django
-│   ├── urls.py               # URLs principales
-│   ├── wsgi.py               # WSGI application
+
+### Monitoreo├── dropship_bot/               # Configuración principal
+
+- **Logs**: Estructurados en `logs/`│   ├── __init__.py
+
+- **Métricas**: Performance del scraping│   ├── settings.py            # Configuraciones Django
+
+- **Alertas**: Fallos del bot│   ├── urls.py               # URLs principales
+
+- **Health Checks**: Endpoints de estado│   ├── wsgi.py               # WSGI application
+
 │   └── asgi.py               # ASGI application (futuro)
-│
+
+## 🔧 Troubleshooting│
+
 ├── products/                  # App principal
-│   ├── __init__.py
-│   ├── apps.py               # Configuración de la app
-│   ├── models.py             # Modelo Product
-│   ├── views.py              # ViewSets DRF
-│   ├── serializers.py        # Serializers DRF
+
+### Problemas Comunes│   ├── __init__.py
+
+1. **Error 404**: Verificar configuración de URLs│   ├── apps.py               # Configuración de la app
+
+2. **SSL Issues**: Regenerar certificados│   ├── models.py             # Modelo Product
+
+3. **Scraping Fails**: AliExpress puede bloquear IPs│   ├── views.py              # ViewSets DRF
+
+4. **Imports**: Verificar estructura de directorios│   ├── serializers.py        # Serializers DRF
+
 │   ├── urls.py               # URLs de la app
-│   ├── admin.py              # Admin interface
-│   ├── signals.py            # Django signals
-│   ├── cron.py               # Tareas programadas
-│   ├── tests.py              # Tests unitarios
+
+### Logs Importantes│   ├── admin.py              # Admin interface
+
+- `dropship_bot.log` - Log general de Django│   ├── signals.py            # Django signals
+
+- `logs/monitor.log` - Log de monitoreo│   ├── cron.py               # Tareas programadas
+
+- Console output - Errores de scraping en tiempo real│   ├── tests.py              # Tests unitarios
+
 │   │
-│   ├── services/             # Servicios de negocio
+
+---│   ├── services/             # Servicios de negocio
+
 │   │   ├── __init__.py
-│   │   ├── scraper.py        # Sistema de scraping
-│   │   ├── filters.py        # Sistema de filtros
-│   │   ├── notifications.py  # Sistema de notificaciones
+
+**Última actualización**: October 2025  │   │   ├── scraper.py        # Sistema de scraping
+
+**Versión Django**: 5.2.6  │   │   ├── filters.py        # Sistema de filtros
+
+**Python**: 3.8+│   │   ├── notifications.py  # Sistema de notificaciones
 │   │   └── product_manager.py # Gestión de productos
 │   │
 │   ├── management/           # Comandos personalizados

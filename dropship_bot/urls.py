@@ -18,14 +18,20 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+from django.http import HttpResponse
 
 @api_view(['GET'])
 def health_check(request):
     """Health check simple para el root"""
     return Response({"status": "ok", "message": "Dropship Bot API está funcionando"})
 
+def plain_health(request):
+    """Health check plano sin DRF para evitar redirects"""
+    return HttpResponse('ok', content_type='text/plain')
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('products.urls')),
     path('health/', health_check, name='simple_health'),
+    path('plain-health/', plain_health, name='plain_health'),
 ]

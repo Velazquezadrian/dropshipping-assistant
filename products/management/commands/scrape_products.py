@@ -18,8 +18,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--platform',
             type=str,
-            help='Plataforma específica a scrapear (mock, aliexpress, etc.)',
-            default=None
+            help='Plataforma específica a scrapear (aliexpress, mock, etc.)',
+            default='aliexpress'  # Cambiar default a aliexpress real
         )
         parser.add_argument(
             '--count',

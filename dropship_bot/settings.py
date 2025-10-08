@@ -31,10 +31,11 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-&i$d#3#(yo!a3cr%$#3heku888
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()]
+ALLOWED_HOSTS = [h.strip() for h in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',') if h.strip()]
 
-# Security settings for production
+# Security settings (different for development vs production)
 if not DEBUG:
+    # In production we optionally enforce HTTPS depending on env flags
     SECURE_SSL_REDIRECT = os.getenv('SECURE_SSL_REDIRECT', 'False').lower() == 'true'
     SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
@@ -42,6 +43,12 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = os.getenv('SECURE_BROWSER_XSS_FILTER', 'True').lower() == 'true'
     SECURE_CONTENT_TYPE_NOSNIFF = os.getenv('SECURE_CONTENT_TYPE_NOSNIFF', 'True').lower() == 'true'
     X_FRAME_OPTIONS = os.getenv('X_FRAME_OPTIONS', 'DENY')
+else:
+    # Development: asegurar que NO forzamos HTTPS para evitar errores como
+    # "You're accessing the development server over HTTPS, but it only supports HTTP".
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
 
 
 # Application definition
@@ -55,7 +62,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'django_filters',
-    'django_crontab',
+    'django_crontab',  # Restaurado - tareas programadas
+    'django_extensions',  # Para runserver_plus con HTTPS
     'products',
 ]
 
@@ -74,7 +82,7 @@ ROOT_URLCONF = 'dropship_bot.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -296,3 +304,24 @@ if SENTRY_DSN and not DEBUG:
     except ImportError:
         # Sentry no instalado, continuar sin monitoreo
         pass
+
+# ========================================
+# CONFIGURACIÓN DE TAREAS CRON RESTAURADA
+# ========================================
+
+CRONJOBS = [
+    # Scrapear productos cada 6 horas
+    ('0 */6 * * *', 'products.cron.scrape_products'),
+    
+    # Health check cada hora
+    ('0 * * * *', 'products.cron.health_check_cron'),
+]
+
+# Configuraciones adicionales para django-crontab
+CRONTAB_LOCK_JOBS = True  # Evitar ejecuciones concurrentes
+CRONTAB_COMMAND_SUFFIX = '2>&1'  # Capturar stderr también
+
+# Configuración de notificaciones
+DISCORD_WEBHOOK_URL = os.getenv('DISCORD_WEBHOOK_URL', '')
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')

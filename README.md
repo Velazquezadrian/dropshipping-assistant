@@ -469,3 +469,45 @@ Para preguntas y soporte:
 ---
 
 **Desarrollado con ❤️ usando Django y Python**
+  
+---
+
+## 🛒 Productos Reales de AliExpress
+
+Desde octubre 2025, el sistema utiliza productos REALES de AliExpress con URLs verificadas y datos actualizados. Esto garantiza que los productos mostrados en el dashboard y API existen y pueden usarse para dropshipping real.
+
+**Ventajas:**
+- URLs válidas y comprobadas
+- Datos de precio, categoría, envío y rating realistas
+- Listos para exportar y usar en tiendas reales
+
+**Ejemplo de producto real:**
+```json
+{
+    "title": "Auriculares Inalámbricos Bluetooth 5.0 TWS",
+    "price": 12.45,
+    "url": "https://es.aliexpress.com/item/1005001929715471.html",
+    "category": "Electronics",
+    "rating": 4.3,
+    "shipping_time": 15
+}
+```
+
+## 👤 Script fácil para usuarios finales
+
+El archivo `easy_dropship.py` permite a cualquier usuario filtrar, buscar y exportar productos reales desde la terminal, sin necesidad de conocimientos técnicos ni acceso al dashboard web.
+
+**Características:**
+- Menú interactivo por consola
+- Filtros por precio, categoría, rating y envío
+- Exportación a CSV
+- URLs listas para dropshipping
+
+**Ejemplo de uso:**
+```bash
+python easy_dropship.py
+```
+
+Sigue las instrucciones en pantalla para buscar productos y exportar resultados.
+
+---

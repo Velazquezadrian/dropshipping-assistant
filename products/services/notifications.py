@@ -623,6 +623,114 @@ def notify_scraping_summary(total_new: int, total_existing: int, total_errors: i
     return notification_manager.notify_scraping_summary(total_new, total_existing, total_errors)
 
 
+def notify_scraping_summary_with_product(total_new: int, total_existing: int, total_errors: int = 0, latest_product=None) -> Dict[str, bool]:
+    """Función para notificar resumen de scraping con producto destacado para dropshipping"""
+    import requests
+    
+    results = {}
+    
+    if total_new == 0:
+        return {'discord': True, 'telegram': True}  # No enviar si no hay productos nuevos
+    
+    # Notificación Discord con producto destacado
+    try:
+        webhook_url = "https://discord.com/api/webhooks/1423036583338053793/Vsy9uz72Gpk9zv5-M8wtLeM-ISj-CPJ-LK73TcKVFL7R2s6I8F8kG77d32zT0ekcWgDL"
+        
+        message = f"🔥 **¡OFERTA ESPECIAL DETECTADA!**\n\n🔥 **¡OFERTA ESPECIAL!** 🔥"
+        
+        if latest_product:
+            embed = {
+                'title': '🛍️ Nuevo Producto para Dropshipping',
+                'description': f'**{latest_product.title}**\n\n[🛒 **VER PRODUCTO EN ALIEXPRESS**]({latest_product.url})',
+                'color': 0xff6b00,  # Naranja como AliExpress
+                'fields': [
+                    {'name': '💰 Precio', 'value': f'${latest_product.price}', 'inline': True},
+                    {'name': '⭐ Rating', 'value': f'{latest_product.rating}/5.0', 'inline': True},
+                    {'name': '🚚 Envío', 'value': f'{latest_product.shipping_time} días', 'inline': True},
+                    {'name': '⚡ Categoría', 'value': str(latest_product.category), 'inline': True},
+                    {'name': '🎯 Fuente', 'value': 'AliExpress', 'inline': True},
+                    {'name': '📦 Productos nuevos', 'value': str(total_new), 'inline': True}
+                ],
+                'footer': {'text': 'Dropshipping Assistant | aliexpress_advanced'},
+                'timestamp': '2025-10-08T17:00:00Z'
+            }
+        else:
+            embed = {
+                'title': '🛍️ Scraping Automático Completado',
+                'description': f'Se encontraron {total_new} productos nuevos',
+                'color': 0x00ff00,
+                'fields': [
+                    {'name': '🆕 Nuevos', 'value': str(total_new), 'inline': True},
+                    {'name': '📋 Existentes', 'value': str(total_existing), 'inline': True},
+                    {'name': '❌ Errores', 'value': str(total_errors), 'inline': True}
+                ],
+                'footer': {'text': 'Dropship Assistant - Sistema Automático'},
+                'timestamp': '2025-10-08T17:00:00Z'
+            }
+        
+        payload = {
+            'username': 'Dropship Assistant 🛍️',
+            'content': message,
+            'embeds': [embed]
+        }
+        
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        results['discord'] = response.status_code in [200, 204]
+        
+    except Exception as e:
+        logger.error(f"Error en notificación Discord: {e}")
+        results['discord'] = False
+    
+    # Notificación Telegram
+    try:
+        bot_token = "8426879269:AAFiOdQvZEuBWjh3CQOalbCI1JZaIobRhtM"
+        chat_id = "1301431585"
+        
+        if latest_product:
+            message = f"""🔥 *¡OFERTA ESPECIAL DETECTADA!*
+
+🛍️ *{latest_product.title}*
+
+💰 *PRECIO INCREÍBLE:* ${latest_product.price}
+⭐ *Rating:* {latest_product.rating}/5.0
+⚡ *Categoría:* {latest_product.category}
+🚚 *Envío:* {latest_product.shipping_time} días
+🎯 *Fuente:* AliExpress
+
+🛒 *ENLACE DEL PRODUCTO:*
+{latest_product.url}
+
+🚨 *¡PRECIO MUY BAJO!* 🚨
+Esta oferta podría terminar pronto
+
+_Dropship Assistant - Sistema Automático_"""
+        else:
+            message = f"""🤖 *Sistema Automático - Scraping Completado*
+
+✅ *{total_new} productos nuevos encontrados*
+📋 *{total_existing} productos ya existían*
+❌ *{total_errors} errores*
+
+_Dropship Assistant - Funcionando automáticamente_"""
+        
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            'chat_id': chat_id,
+            'text': message,
+            'parse_mode': 'Markdown',
+            'disable_web_page_preview': False
+        }
+        
+        response = requests.post(url, json=payload, timeout=10)
+        results['telegram'] = response.status_code == 200
+        
+    except Exception as e:
+        logger.error(f"Error en notificación Telegram: {e}")
+        results['telegram'] = False
+    
+    return results
+
+
 def test_all_notifications() -> Dict[str, bool]:
     """Función conveniente para probar todas las notificaciones"""
     return notification_manager.test_notifications()

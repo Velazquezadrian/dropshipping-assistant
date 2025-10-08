@@ -6,7 +6,7 @@ import logging
 from django.utils import timezone
 from products.models import Product
 from products.services.scraper import scrape_all_platforms
-from products.services.notifications import notify_scraping_summary
+from products.services.notifications import notify_scraping_summary, notify_scraping_summary_with_product
 
 logger = logging.getLogger('products')
 
@@ -34,9 +34,20 @@ def scrape_products():
         existing_products = stats['existing']
         errors = stats['errors']
         
-        # Enviar resumen por notificaciones
+        # Enviar resumen por notificaciones con enlace del producto
         if new_products > 0 or errors > 0:  # Solo notificar si hay algo relevante
-            notify_scraping_summary(new_products, existing_products, errors)
+            # Obtener producto más reciente para incluir en notificación
+            latest_product = None
+            if new_products > 0:
+                try:
+                    from django.utils import timezone
+                    latest_product = Product.objects.filter(
+                        created_at__gte=timezone.now() - timezone.timedelta(minutes=5)
+                    ).first()
+                except:
+                    pass
+            
+            notify_scraping_summary_with_product(new_products, existing_products, errors, latest_product)
         
         # Log final
         logger.info(

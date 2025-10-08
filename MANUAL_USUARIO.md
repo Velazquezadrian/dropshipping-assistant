@@ -1,257 +1,510 @@
-# 📖 Manual de Usuario - Sistema de Dropshipping v2.0
+# Manual de Usuario - Dropship Bot# 📖 Manual de Usuario - Sistema de Dropshipping v2.0
 
-## 🎯 Introducción
 
-¡Bienvenido al sistema de dropshipping automatizado v2.0! Esta aplicación te ayuda a encontrar productos rentables de diferentes plataformas de e-commerce como AliExpress.
 
-### 🌟 Nuevas Funcionalidades v2.0
+## 🚀 Introducción## 🎯 Introducción
 
-- **🖥️ Dashboard Web**: Interfaz gráfica completa con Bootstrap 5
-- **⚡ Scraping Asíncrono**: Procesos en segundo plano con Celery
-- **📋 Sistema de Jobs**: Seguimiento y cancelación de trabajos de scraping
-- **📊 Analytics Avanzados**: Gráficos interactivos con Chart.js
-- **👁️ Monitoreo en Tiempo Real**: Con Flower para supervisar tareas
-- **🔔 Notificaciones Mejoradas**: Sistema automático con plantillas personalizadas
 
-### ¿Qué hace este sistema?
 
-- 🔍 **Busca productos automáticamente** en diferentes plataformas
-- 📊 **Analiza precios y tendencias** para encontrar oportunidades
-- 🔔 **Te notifica** cuando encuentra productos interesantes
+Dropship Bot es un sistema automatizado para encontrar productos reales de AliExpress con filtros avanzados. El sistema scrappea productos en tiempo real y proporciona una interfaz web fácil de usar.¡Bienvenido al sistema de dropshipping automatizado v2.0! Esta aplicación te ayuda a encontrar productos rentables de diferentes plataformas de e-commerce como AliExpress.
+
+
+
+## 🎯 Características Principales### 🌟 Nuevas Funcionalidades v2.0
+
+
+
+- ✅ **Productos Reales**: Scraping directo desde AliExpress- **🖥️ Dashboard Web**: Interfaz gráfica completa con Bootstrap 5
+
+- ✅ **Filtros Avanzados**: Por precio, envío, rating- **⚡ Scraping Asíncrono**: Procesos en segundo plano con Celery
+
+- ✅ **Interfaz Web**: Fácil de usar, responsive- **📋 Sistema de Jobs**: Seguimiento y cancelación de trabajos de scraping
+
+- ✅ **API REST**: Para integración con otras aplicaciones- **📊 Analytics Avanzados**: Gráficos interactivos con Chart.js
+
+- ✅ **HTTPS Seguro**: Conexión encriptada- **👁️ Monitoreo en Tiempo Real**: Con Flower para supervisar tareas
+
+- ✅ **Sistema de Fallback**: Funciona aunque AliExpress bloquee- **🔔 Notificaciones Mejoradas**: Sistema automático con plantillas personalizadas
+
+
+
+## 🛠️ Instalación Rápida### ¿Qué hace este sistema?
+
+
+
+### 1. Prerrequisitos- 🔍 **Busca productos automáticamente** en diferentes plataformas
+
+- Python 3.8 o superior- 📊 **Analiza precios y tendencias** para encontrar oportunidades
+
+- Git (para clonar el repositorio)- 🔔 **Te notifica** cuando encuentra productos interesantes
+
 - 📈 **Proporciona estadísticas** para tomar mejores decisiones
-- 🖥️ **Dashboard web interactivo** para gestión visual
-- ⚡ **Procesos asíncronos** que no bloquean la aplicación
 
----
+### 2. Configuración- 🖥️ **Dashboard web interactivo** para gestión visual
+
+```bash- ⚡ **Procesos asíncronos** que no bloquean la aplicación
+
+# Clonar repositorio
+
+git clone https://github.com/Velazquezadrian/dropshipping-assistant.git---
+
+cd dropshipping-assistant
 
 ## 🚀 Primeros Pasos
 
-### 1. Acceso al Sistema
+# Crear entorno virtual
 
-Una vez que el sistema esté instalado y funcionando, puedes acceder a través de:
+python -m venv .venv### 1. Acceso al Sistema
+
+
+
+# Activar entorno (Windows)Una vez que el sistema esté instalado y funcionando, puedes acceder a través de:
+
+.venv\Scripts\activate
 
 - **🖥️ Dashboard Web**: http://localhost:8000/ (¡NUEVO!)
-- **📊 Dashboard de Analytics**: http://localhost:8000/dashboard/ (¡NUEVO!)
-- **👁️ Monitor de Tareas (Flower)**: http://localhost:8001/ (¡NUEVO!)
+
+# Instalar dependencias- **📊 Dashboard de Analytics**: http://localhost:8000/dashboard/ (¡NUEVO!)
+
+pip install -r requirements.txt- **👁️ Monitor de Tareas (Flower)**: http://localhost:8001/ (¡NUEVO!)
+
 - **API REST**: http://localhost:8000/api/products/
-- **Panel de Administración**: http://localhost:8000/admin/
-- **Health Check**: http://localhost:8000/health/
+
+# Configurar base de datos- **Panel de Administración**: http://localhost:8000/admin/
+
+python manage.py migrate- **Health Check**: http://localhost:8000/health/
+
+```
 
 ### 2. Dashboard Web - Tu Centro de Control
 
-**🎯 ¡Novedad v2.0!** Ahora tienes una interfaz web completa:
+### 3. Iniciar el Sistema
 
-#### Página Principal (http://localhost:8000/)
+```bash**🎯 ¡Novedad v2.0!** Ahora tienes una interfaz web completa:
+
+# Servidor HTTPS (Recomendado)
+
+python manage.py runserver_plus --cert-file certs/cert.pem --key-file certs/key.pem 127.0.0.1:8443#### Página Principal (http://localhost:8000/)
+
 - Vista general del sistema
-- Estadísticas en tiempo real
-- Acceso rápido a todas las funciones
+
+# O servidor HTTP (desarrollo)- Estadísticas en tiempo real
+
+python manage.py runserver 127.0.0.1:8000- Acceso rápido a todas las funciones
+
+```
 
 #### Dashboard de Analytics (http://localhost:8000/dashboard/)
-- 📊 **Gráficos Interactivos**: Tendencias de precios y productos
+
+## 🌐 Uso de la Interfaz Web- 📊 **Gráficos Interactivos**: Tendencias de precios y productos
+
 - 📈 **Métricas en Tiempo Real**: Total de productos, precios promedio
-- 🔍 **Filtros Avanzados**: Por categoría, plataforma, fecha
-- 📱 **Responsive**: Funciona perfecto en móviles y tablets
+
+### Acceder al Sistema- 🔍 **Filtros Avanzados**: Por categoría, plataforma, fecha
+
+- **HTTPS**: https://127.0.0.1:8443/real-filter-ui/- 📱 **Responsive**: Funciona perfecto en móviles y tablets
+
+- **HTTP**: http://127.0.0.1:8000/real-filter-ui/
 
 #### Monitor de Tareas (http://localhost:8001/)
-- ⚡ **Flower Dashboard**: Monitorea trabajos de scraping en tiempo real
+
+### Búsqueda de Productos- ⚡ **Flower Dashboard**: Monitorea trabajos de scraping en tiempo real
+
 - 📋 **Estado de Jobs**: Ve qué tareas están corriendo, completadas o fallaron
-- 🔧 **Control Total**: Cancela o reinicia tareas según necesites
+
+1. **Keywords**: Introduce palabras clave en inglés- 🔧 **Control Total**: Cancela o reinicia tareas según necesites
+
+   - Ejemplos: `wireless mouse gaming`, `bluetooth headphones`, `phone case`
 
 ### 3. Verificar que el Sistema Funciona
 
-Visita http://localhost:8000/health/ en tu navegador. Deberías ver:
+2. **Filtro de Precio**:
 
-```json
+   - **Precio Mínimo**: Ej. 15 USDVisita http://localhost:8000/health/ en tu navegador. Deberías ver:
+
+   - **Precio Máximo**: Ej. 45 USD
+
+   - **Moneda**: USD (por defecto)```json
+
 {
-    "status": "ok",
-    "message": "Dropship Bot API está funcionando"
+
+3. **Filtro de Envío**:    "status": "ok",
+
+   - **Días Máximos**: Ej. 30 días    "message": "Dropship Bot API está funcionando"
+
 }
-```
+
+4. **Límite de Productos**:```
+
+   - **Cantidad**: Ej. 5 productos
 
 ---
+
+5. **Buscar**: Haz clic en "Buscar Productos"
 
 ## 🛍️ Gestión de Productos
 
+### Interpretación de Resultados
+
 ### Ver Productos
 
-Para ver todos los productos disponibles:
+#### Indicadores de Estado
+
+- 🟢 **Verde**: Productos reales de AliExpressPara ver todos los productos disponibles:
+
+- 🟡 **Amarillo**: Productos de fallback (AliExpress bloqueó)
 
 **Opción 1: Navegador Web**
-- Ve a: http://localhost:8000/api/products/
 
-**Opción 2: Línea de comandos (curl)**
-```bash
-curl http://localhost:8000/api/products/
-```
+#### Información del Producto- Ve a: http://localhost:8000/api/products/
 
-### Ejemplo de respuesta:
+- **Título**: Nombre del producto
+
+- **Precio**: En USD**Opción 2: Línea de comandos (curl)**
+
+- **Rating**: Calificación de 1-5 estrellas```bash
+
+- **Envío**: Días estimados de entregacurl http://localhost:8000/api/products/
+
+- **URL**: Enlace directo al producto```
+
+
+
+## 📡 Uso de la API### Ejemplo de respuesta:
+
 ```json
-{
-    "count": 25,
-    "next": "http://localhost:8000/api/products/?page=2",
-    "previous": null,
-    "results": [
-        {
-            "id": 1,
-            "title": "Smartphone Android 128GB",
-            "price": "299.99",
-            "url": "https://example-aliexpress.com/item/smartphone-1234",
-            "image": "https://example.com/images/smartphone1.jpg",
-            "created_at": "2025-09-29T10:30:00Z",
-            "rating": "4.5",
-            "source_platform": "mock_aliexpress"
-        }
-    ]
-}
-```
 
----
+### Endpoints Disponibles{
+
+    "count": 25,
+
+#### 1. Búsqueda de Productos    "next": "http://localhost:8000/api/products/?page=2",
+
+```bash    "previous": null,
+
+POST https://127.0.0.1:8443/real-filter/    "results": [
+
+Content-Type: application/json        {
+
+            "id": 1,
+
+{            "title": "Smartphone Android 128GB",
+
+  "keywords": "wireless mouse gaming",            "price": "299.99",
+
+  "min_price": 15,            "url": "https://example-aliexpress.com/item/smartphone-1234",
+
+  "max_price": 45,            "image": "https://example.com/images/smartphone1.jpg",
+
+  "currency": "USD",            "created_at": "2025-09-29T10:30:00Z",
+
+  "max_shipping_days": 30,            "rating": "4.5",
+
+  "limit": 5            "source_platform": "mock_aliexpress"
+
+}        }
+
+```    ]
+
+}
+
+#### 2. Información del Sistema```
+
+```bash
+
+GET https://127.0.0.1:8443/real-filter/info/---
+
+```
 
 ## ⚡ Scraping Asíncrono - Lo Más Nuevo
 
-### 🎯 ¿Qué es el Scraping Asíncrono?
+#### 3. Test Rápido
 
-En la v2.0 hemos implementado un sistema de scraping que corre en segundo plano, permitiéndote:
+```bash### 🎯 ¿Qué es el Scraping Asíncrono?
+
+GET https://127.0.0.1:8443/real-filter/quick-test/
+
+```En la v2.0 hemos implementado un sistema de scraping que corre en segundo plano, permitiéndote:
+
 - 🚀 **Iniciar búsquedas sin esperar**: El proceso corre mientras haces otras cosas
-- 📋 **Seguir el progreso**: Ve en tiempo real cómo avanza el scraping
-- ❌ **Cancelar trabajos**: Si cambias de opinión, cancela fácilmente
-- 📊 **Historial completo**: Todos los trabajos quedan registrados
 
-### 🚀 Cómo Usar el Scraping Asíncrono
+### Ejemplo con curl- 📋 **Seguir el progreso**: Ve en tiempo real cómo avanza el scraping
 
-#### Desde el Dashboard Web:
-1. Ve a http://localhost:8000/dashboard/
-2. Busca el botón **"Iniciar Scraping Asíncrono"**
-3. Configura los parámetros (cantidad de productos, filtros)
-4. ¡Haz clic y listo! El trabajo se ejecutará en segundo plano
+```bash- ❌ **Cancelar trabajos**: Si cambias de opinión, cancela fácilmente
 
-#### Desde la API:
+curl -X POST https://127.0.0.1:8443/real-filter/ \- 📊 **Historial completo**: Todos los trabajos quedan registrados
+
+  -H "Content-Type: application/json" \
+
+  -k \### 🚀 Cómo Usar el Scraping Asíncrono
+
+  -d '{
+
+    "keywords": "bluetooth headphones",#### Desde el Dashboard Web:
+
+    "min_price": 20,1. Ve a http://localhost:8000/dashboard/
+
+    "max_price": 60,2. Busca el botón **"Iniciar Scraping Asíncrono"**
+
+    "currency": "USD",3. Configura los parámetros (cantidad de productos, filtros)
+
+    "max_shipping_days": 25,4. ¡Haz clic y listo! El trabajo se ejecutará en segundo plano
+
+    "limit": 3
+
+  }'#### Desde la API:
+
+```
 
 **Iniciar un trabajo de scraping:**
-```bash
-curl -X POST http://localhost:8000/api/scrape/async/ \
-  -H "Content-Type: application/json" \
-  -d '{"count": 50, "platforms": ["aliexpress"]}'
-```
 
-**Ver el estado del trabajo:**
-```bash
-curl http://localhost:8000/api/scrape/status/
-```
+### Respuesta de la API```bash
 
-**Listar todos los trabajos:**
-```bash
-curl http://localhost:8000/api/scrape/jobs/
-```
+```jsoncurl -X POST http://localhost:8000/api/scrape/async/ \
 
-**Cancelar un trabajo específico:**
-```bash
-curl -X POST http://localhost:8000/api/scrape/jobs/123/cancel/
-```
+{  -H "Content-Type: application/json" \
 
-### 📊 Estados de los Trabajos
+  "products": [  -d '{"count": 50, "platforms": ["aliexpress"]}'
 
-| Estado | Descripción | Acción |
-|--------|-------------|---------|
-| `PENDING` | ⏳ Esperando ejecutarse | - |
+    {```
+
+      "title": "Wireless Gaming Mouse RGB",
+
+      "price": "$29.99",**Ver el estado del trabajo:**
+
+      "currency": "USD",```bash
+
+      "url": "https://aliexpress.com/item/...",curl http://localhost:8000/api/scrape/status/
+
+      "image_url": "https://ae01.alicdn.com/...",```
+
+      "rating": 4.5,
+
+      "rating_count": 1250,**Listar todos los trabajos:**
+
+      "shipping_days": 15,```bash
+
+      "category": "Electronics"curl http://localhost:8000/api/scrape/jobs/
+
+    }```
+
+  ],
+
+  "real_products": true,**Cancelar un trabajo específico:**
+
+  "source": "aliexpress_real",```bash
+
+  "total_found": 3,curl -X POST http://localhost:8000/api/scrape/jobs/123/cancel/
+
+  "filters_applied": {```
+
+    "min_price": 20,
+
+    "max_price": 60,### 📊 Estados de los Trabajos
+
+    "max_shipping_days": 25
+
+  }| Estado | Descripción | Acción |
+
+}|--------|-------------|---------|
+
+```| `PENDING` | ⏳ Esperando ejecutarse | - |
+
 | `STARTED` | 🔄 Ejecutándose ahora | Puedes cancelar |
-| `SUCCESS` | ✅ Completado exitosamente | Ver resultados |
+
+## 💡 Consejos de Uso| `SUCCESS` | ✅ Completado exitosamente | Ver resultados |
+
 | `FAILURE` | ❌ Falló por algún error | Ver logs de error |
-| `REVOKED` | 🚫 Cancelado por usuario | - |
 
-### 🔔 Notificaciones Automáticas
+### Para Mejores Resultados| `REVOKED` | 🚫 Cancelado por usuario | - |
 
-Cuando inicias un scraping asíncrono, el sistema te notificará automáticamente:
+- **Keywords en inglés**: Los términos en inglés funcionan mejor
+
+- **Palabras específicas**: "wireless mouse gaming" vs "mouse"### 🔔 Notificaciones Automáticas
+
+- **Rangos de precio realistas**: No muy bajos ni muy altos
+
+- **Paciencia**: El scraping real puede tomar 10-30 segundosCuando inicias un scraping asíncrono, el sistema te notificará automáticamente:
+
 - ✅ **Al completarse**: "Se encontraron 50 nuevos productos"
-- ❌ **Si falla**: "Error en el scraping: detalles del problema"
-- 📊 **Resumen**: Estadísticas del trabajo realizado
 
----
+### Keywords Recomendadas- ❌ **Si falla**: "Error en el scraping: detalles del problema"
+
+- **Electrónicos**: `wireless mouse`, `bluetooth headphones`, `phone case`- 📊 **Resumen**: Estadísticas del trabajo realizado
+
+- **Hogar**: `kitchen tools`, `home decor`, `led lights`
+
+- **Deportes**: `fitness tracker`, `sports equipment`, `yoga mat`---
+
+- **Moda**: `fashion accessories`, `jewelry`, `bags`
 
 ## 📊 Dashboard y Analytics
 
-### 🎨 Dashboard Principal
+### Filtros Efectivos
 
-El dashboard web te ofrece una experiencia visual completa:
+- **Precio**: Rango de $10-$100 USD da mejores resultados### 🎨 Dashboard Principal
 
-#### 📈 Gráficos Disponibles:
+- **Envío**: 15-45 días es típico de AliExpress
+
+- **Límite**: 3-10 productos para pruebas rápidasEl dashboard web te ofrece una experiencia visual completa:
+
+
+
+## 🔍 Troubleshooting#### 📈 Gráficos Disponibles:
+
 - **Productos por Día**: Ve cómo crece tu base de datos
-- **Distribución de Precios**: Histograma de rangos de precios
+
+### Problemas Comunes- **Distribución de Precios**: Histograma de rangos de precios
+
 - **Productos por Plataforma**: Comparativa entre AliExpress, Amazon, etc.
-- **Productos por Categoría**: ¿Qué categorías son más populares?
-- **Tendencias de Rating**: Calidad promedio de productos
 
-#### 📊 Métricas en Tiempo Real:
+#### 1. No Aparecen Productos- **Productos por Categoría**: ¿Qué categorías son más populares?
+
+- **Causa**: AliExpress puede estar bloqueando- **Tendencias de Rating**: Calidad promedio de productos
+
+- **Solución**: El sistema usa fallback automático
+
+- **Acción**: Intenta keywords diferentes#### 📊 Métricas en Tiempo Real:
+
 - Total de productos en la base de datos
-- Precio promedio y rangos
-- Productos agregados hoy/esta semana
-- Plataformas activas
-- Categorías disponibles
 
-#### 🔍 Funciones Interactivas:
-- **Filtrar por fechas**: Ve productos de períodos específicos
-- **Filtrar por categorías**: Enfócate en lo que te interesa
-- **Búsqueda en tiempo real**: Encuentra productos específicos
+#### 2. Tarda Mucho en Cargar- Precio promedio y rangos
+
+- **Causa**: Scraping real toma tiempo- Productos agregados hoy/esta semana
+
+- **Solución**: Normal, espera 10-30 segundos- Plataformas activas
+
+- **Acción**: Reduce el límite de productos- Categorías disponibles
+
+
+
+#### 3. Error de Conexión SSL#### 🔍 Funciones Interactivas:
+
+- **Causa**: Certificado autofirmado- **Filtrar por fechas**: Ve productos de períodos específicos
+
+- **Solución**: Acepta el certificado en el navegador- **Filtrar por categorías**: Enfócate en lo que te interesa
+
+- **Acción**: Usa HTTP si es necesario- **Búsqueda en tiempo real**: Encuentra productos específicos
+
 - **Exportar datos**: Descarga reportes en CSV/JSON
 
-### 📱 Responsive Design
+#### 4. Error 404
 
-El dashboard funciona perfectamente en:
+- **Causa**: Servidor no iniciado### 📱 Responsive Design
+
+- **Solución**: Verifica que el servidor esté corriendo
+
+- **Acción**: Ejecuta `python manage.py runserver_plus`El dashboard funciona perfectamente en:
+
 - 💻 **Desktop**: Experiencia completa con todos los gráficos
-- 📱 **Móvil**: Optimizado para gestión sobre la marcha
-- 📟 **Tablet**: Perfecto para presentaciones y análisis
 
----
+### Logs y Debugging- 📱 **Móvil**: Optimizado para gestión sobre la marcha
 
-## 🔍 Filtrado de Productos
+- **Logs del servidor**: Mira la consola donde ejecutaste el servidor- 📟 **Tablet**: Perfecto para presentaciones y análisis
 
-### Filtros Disponibles
+- **Network tab**: F12 en el navegador para ver requests
 
-Puedes filtrar productos usando los siguientes parámetros:
+- **Test endpoints**: Usa `/real-filter/quick-test/` para verificar---
 
-| Parámetro | Descripción | Ejemplo |
-|-----------|-------------|---------|
-| `min_price` | Precio mínimo | `min_price=20` |
+
+
+## 🚀 Casos de Uso## 🔍 Filtrado de Productos
+
+
+
+### 1. Investigación de Mercado### Filtros Disponibles
+
+```bash
+
+# Buscar productos en categoría específicaPuedes filtrar productos usando los siguientes parámetros:
+
+Keywords: "smartphone accessories"
+
+Precio: $5-$50| Parámetro | Descripción | Ejemplo |
+
+Envío: 30 días max|-----------|-------------|---------|
+
+```| `min_price` | Precio mínimo | `min_price=20` |
+
 | `max_price` | Precio máximo | `max_price=100` |
-| `keywords` | Palabras clave | `keywords=smartphone,android` |
-| `max_shipping_days` | Máximo días de envío | `max_shipping_days=15` |
-| `min_rating` | Calificación mínima | `min_rating=4.0` |
-| `platforms` | Plataformas específicas | `platforms=aliexpress,amazon` |
-| `categories` | Categorías | `categories=Electronics,Home` |
-| `search` | Búsqueda general | `search=bluetooth` |
+
+### 2. Análisis de Competencia| `keywords` | Palabras clave | `keywords=smartphone,android` |
+
+```bash| `max_shipping_days` | Máximo días de envío | `max_shipping_days=15` |
+
+# Productos similares a los tuyos| `min_rating` | Calificación mínima | `min_rating=4.0` |
+
+Keywords: "leather wallet men"| `platforms` | Plataformas específicas | `platforms=aliexpress,amazon` |
+
+Precio: $15-$35| `categories` | Categorías | `categories=Electronics,Home` |
+
+Rating mínimo: 4.0+| `search` | Búsqueda general | `search=bluetooth` |
+
+```
 
 ### Ejemplos Prácticos
 
-#### 1. Productos baratos y rápidos
-```
-http://localhost:8000/api/products/?max_price=50&max_shipping_days=10
+### 3. Trending Products
+
+```bash#### 1. Productos baratos y rápidos
+
+# Productos populares```
+
+Keywords: "trending gadgets 2025"http://localhost:8000/api/products/?max_price=50&max_shipping_days=10
+
+Precio: $10-$100```
+
+Envío: 20 días max
+
+```#### 2. Electrónicos bien calificados
+
 ```
 
-#### 2. Electrónicos bien calificados
-```
-http://localhost:8000/api/products/?categories=Electronics&min_rating=4.0
+## 📞 Soportehttp://localhost:8000/api/products/?categories=Electronics&min_rating=4.0
+
 ```
 
-#### 3. Productos con palabras específicas
-```
-http://localhost:8000/api/products/?keywords=wireless,bluetooth&min_rating=4.0
+### Tests Disponibles
+
+```bash#### 3. Productos con palabras específicas
+
+# Test completo del sistema```
+
+python test_bot_real.pyhttp://localhost:8000/api/products/?keywords=wireless,bluetooth&min_rating=4.0
+
 ```
 
-#### 4. Rango de precio específico
+# Demo funcional
+
+python demo_final_real.py#### 4. Rango de precio específico
+
 ```
-http://localhost:8000/api/products/?min_price=25&max_price=75
+
+# Verificación del bothttp://localhost:8000/api/products/?min_price=25&max_price=75
+
+python verificar_bot_real.py```
+
 ```
 
 ---
 
-## 📊 Estadísticas y Reportes
+### Información del Sistema
 
-### Ver Estadísticas Generales
+- **Versión**: Django 5.2.6## 📊 Estadísticas y Reportes
+
+- **Python**: 3.8+
+
+- **Base de datos**: SQLite### Ver Estadísticas Generales
+
+- **Scraping**: BeautifulSoup + requests
 
 **URL**: http://localhost:8000/api/products/stats/
 
+---
+
 **Ejemplo de respuesta**:
-```json
+
+**¡Disfruta usando Dropship Bot para encontrar los mejores productos de AliExpress!** 🚀```json
 {
     "total_products": 150,
     "average_price": "45.67",

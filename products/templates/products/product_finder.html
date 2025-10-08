@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Buscador de Productos AliExpress</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background:#f5f7fa; }
+    .result-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.15); }
+    .small-label { font-size:.75rem; text-transform:uppercase; letter-spacing:.5px; color:#666; }
+  </style>
+</head>
+<body>
+<div class="container py-4">
+  <h1 class="mb-3">🔍 Buscador de Productos (AliExpress)</h1>
+  <p class="text-muted">Filtra productos reales por precio, rating, categoría y tiempo de envío (aprox). No se guardan en la base, es una búsqueda rápida.</p>
+  <div class="card mb-4">
+    <div class="card-header bg-primary text-white">Filtros</div>
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <input type="hidden" name="run" value="1">
+        <div class="col-md-3">
+          <label class="form-label small-label">Texto búsqueda</label>
+          <input type="text" name="search_term" class="form-control" value="{{ request.GET.search_term }}" placeholder="ej: auriculares">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small-label">Precio mín</label>
+          <input type="number" step="0.01" name="min_price" class="form-control" value="{{ request.GET.min_price }}" placeholder="0">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small-label">Precio máx</label>
+          <input type="number" step="0.01" name="max_price" class="form-control" value="{{ request.GET.max_price }}" placeholder="100">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small-label">Rating mín</label>
+          <input type="number" step="0.1" min="0" max="5" name="min_rating" class="form-control" value="{{ request.GET.min_rating }}" placeholder="4.0">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small-label">Categoría contiene</label>
+          <input type="text" name="category" class="form-control" value="{{ request.GET.category }}" placeholder="Electronics">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small-label">Envío máx (días)</label>
+          <input type="number" min="1" name="max_shipping_days" class="form-control" value="{{ request.GET.max_shipping_days }}" placeholder="20">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small-label">Fuente</label>
+          <select name="source" class="form-select">
+            <option value="aliexpress" {% if request.GET.source == 'aliexpress' or not request.GET.source %}selected{% endif %}>AliExpress</option>
+          </select>
+        </div>
+        <div class="col-12 d-flex gap-2 mt-2">
+          <button class="btn btn-primary"><i class="bi bi-search"></i> Buscar</button>
+          <a href="/finder/" class="btn btn-secondary">Limpiar</a>
+          <a href="/simple/" class="btn btn-outline-dark ms-auto">Volver Dashboard Simple</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-danger">Error en scraping: {{ error }}</div>
+  {% endif %}
+
+  {% if results %}
+    <h5 class="mb-3">Resultados ({{ results|length }})</h5>
+    <div class="row">
+      {% for p in results %}
+      <div class="col-md-4 col-lg-3 mb-4">
+        <div class="card h-100 result-card">
+          {% if p.image %}<img src="{{ p.image }}" class="card-img-top" style="height:170px;object-fit:cover;">{% endif %}
+          <div class="card-body d-flex flex-column">
+            <h6 class="card-title">{{ p.title|truncatechars:60 }}</h6>
+            <div class="mb-2">
+              <span class="badge bg-primary">${{ p.price }}</span>
+              <span class="badge bg-warning text-dark">⭐ {{ p.rating }}</span>
+            </div>
+            <small class="text-muted mb-2">{{ p.category }}</small>
+            {% if p.shipping_time %}
+            <small class="text-muted mb-2">🚚 {{ p.shipping_time }} días aprox</small>
+            {% endif %}
+            <div class="mt-auto">
+              {% if p.url %}<a href="{{ p.url }}" target="_blank" class="btn btn-sm btn-outline-primary">Ver en AliExpress</a>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% elif request.GET.run %}
+    <div class="alert alert-info">No se encontraron productos con esos filtros.</div>
+  {% endif %}
+  <footer class="mt-5 text-center text-muted small">Resultados no persistidos • Fuente: AliExpress (estrategia de productos conocidos)</footer>
+</div>
+</body>
+</html>

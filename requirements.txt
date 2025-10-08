@@ -8,41 +8,48 @@ django-filter==25.1
 # Tareas programadas
 django-crontab==0.7.1
 
-# HTTP requests
+# HTTP requests y web scraping
 requests==2.32.5
-python-dotenv==1.0.1
-
-# Web scraping
 beautifulsoup4==4.14.2
 lxml==6.0.2
+
+# Web scraping avanzado
 selenium==4.35.0
 requests-html==0.10.0
 
-# System monitoring and production
+# Headers y user agents realistas
+fake-useragent==1.5.1
+
+# Configuración
+python-dotenv==1.0.1
+
+# SSL/HTTPS
+cryptography==43.0.3
+pyopenssl==24.2.1
+
+# System monitoring básico
 psutil==7.1.0
 
-# Notificaciones
+# Notificaciones (restauradas)
 python-telegram-bot==22.5
 
-# Para desarrollo y testing (opcional)
-coverage==7.6.9
-pytest-django==4.8.0
-
-# Para producción (opcional)
-gunicorn==21.2.0
-psycopg[binary]==3.2.10  # PostgreSQL - Última versión compatible con Python 3.13
-redis==4.6.0  # Cache
-django-redis==5.3.0  # Django Redis integration
-sentry-sdk==1.32.0  # Error monitoring
-
-# Task queue
-celery==5.4.0
-billiard==4.2.0
-kombu==5.3.7
-flower==2.0.1  # Monitoring opcional
-
-# Para API documentation (opcional)
-drf-yasg==1.21.7  # Swagger/OpenAPI
-
-# Para rate limiting (opcional)
-django-ratelimit==4.1.0
+# ========================================
+# DEPENDENCIAS REMOVIDAS (no utilizadas):
+# ========================================
+# django-crontab==0.7.1                # No hay tareas cron activas
+# selenium==4.35.0                     # No se usa scraping con navegador
+# requests-html==0.10.0                # No se usa
+# python-telegram-bot==22.5            # Código presente pero no activo
+# coverage==7.6.9                      # No hay tests coverage
+# pytest-django==4.8.0                 # No se usan tests pytest
+# gunicorn==21.2.0                     # No en producción aún
+# psycopg[binary]==3.2.10              # No se usa PostgreSQL
+# redis==4.6.0                         # No se usa cache Redis
+# django-redis==5.3.0                  # No se usa cache Redis
+# sentry-sdk==1.32.0                   # No hay monitoreo error
+# celery==5.4.0                        # No hay tasks asíncronas
+# billiard==4.2.0                      # Dependencia de Celery
+# kombu==5.3.7                         # Dependencia de Celery
+# flower==2.0.1                        # Monitoring Celery
+# drf-yasg==1.21.7                     # No hay documentación API
+# django-ratelimit==4.1.0              # No hay rate limiting

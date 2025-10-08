@@ -19,7 +19,7 @@ from .analytics_views import (
     TrendAnalysisView,
     ProductMetricsView
 )
-from .dashboard_views import DashboardView, AnalyticsView
+from .dashboard_views import DashboardView, AnalyticsView, SimpleDashboardView, ProductFinderView
 
 # Router de DRF
 router = DefaultRouter()
@@ -42,5 +42,7 @@ urlpatterns = [
     path('api/scrapes/jobs/<uuid:pk>/cancel/', ScrapeJobCancelView.as_view(), name='scrape-jobs-cancel'),
     # HTML Dashboard views
     path('dashboard/', DashboardView.as_view(), name='dashboard-html'),
+    path('simple/', SimpleDashboardView.as_view(), name='simple-dashboard'),
     path('analytics/', AnalyticsView.as_view(), name='analytics-html'),
+    path('finder/', ProductFinderView.as_view(), name='product-finder'),
 ]
