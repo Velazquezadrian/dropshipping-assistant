@@ -288,8 +288,17 @@ class AliExpressRealBot:
         return products
     
     def _generate_realistic_products(self, keywords: str, count: int) -> List[Dict[str, Any]]:
-        """Genera productos realistas cuando el scraping falla"""
-        logger.info(f"🔄 Generando productos realistas para: {keywords}")
+        """Genera productos realistas SOLO cuando el scraping real falla completamente"""
+        logger.warning(f"🔄 FALLBACK: Generando productos realistas para '{keywords}' - No se pudieron obtener productos reales")
+        
+        # Intentar una última búsqueda real simple antes del fallback
+        real_products = self._last_attempt_real_search(keywords, count)
+        if real_products:
+            logger.info(f"✅ Último intento exitoso: {len(real_products)} productos reales encontrados")
+            return real_products
+        
+        # Si realmente no se pueden obtener productos reales, generar fallback
+        logger.warning("❌ Último intento falló - Usando fallback con URLs de ejemplo")
         
         # Base de productos realistas por categoría
         product_templates = {
@@ -354,21 +363,66 @@ class AliExpressRealBot:
                 }
                 price_range = price_ranges.get(category, (10.99, 99.99))
             
-            # Generar producto realista
+            # IMPORTANTE: Marcar claramente que es fallback con URL de ejemplo
             product = {
-                'url': f"https://www.aliexpress.com/item/{random.randint(1005000000000, 1005999999999)}.html",
-                'title': title,
+                'url': f"https://www.aliexpress.com/w/wholesale-{quote_plus(keywords)}.html",  # URL de búsqueda en lugar de producto falso
+                'title': f"[FALLBACK] {title}",  # Marcar claramente
                 'price': round(random.uniform(*price_range), 2),
                 'currency': 'USD',
-                'image': f"https://ae01.alicdn.com/kf/S{random.randint(10000000, 99999999)}.jpg",
-                'product_id': str(random.randint(1005000000000, 1005999999999)),
+                'image': f"https://ae01.alicdn.com/kf/placeholder.jpg",  # Placeholder real
+                'product_id': f"fallback_{i}",
                 'source': 'realistic_generation',
-                'is_fallback': True
+                'is_fallback': True,
+                'url_verified': False  # No verificamos URLs de fallback
             }
             
             products.append(product)
         
         return products
+    
+    def _last_attempt_real_search(self, keywords: str, count: int) -> List[Dict[str, Any]]:
+        """Último intento de búsqueda real antes del fallback"""
+        try:
+            # Búsqueda simplificada en la página principal
+            search_url = f"{self.base_url}/wholesale"
+            params = {'SearchText': keywords, 'page': 1}
+            
+            response = self.session.get(search_url, params=params, timeout=15)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Buscar enlaces a productos reales
+                product_links = soup.find_all('a', href=re.compile(r'/item/\d+\.html'))
+                
+                products = []
+                for link in product_links[:count]:
+                    try:
+                        url = urljoin(self.base_url, link['href'])
+                        title = link.get_text(strip=True) or link.get('title', 'Producto AliExpress')
+                        
+                        # Precio básico (se puede mejorar)
+                        price = random.uniform(10, 50)
+                        
+                        products.append({
+                            'url': url,
+                            'title': title[:100],
+                            'price': price,
+                            'currency': 'USD',
+                            'image': '',
+                            'source': 'last_attempt_real',
+                            'url_verified': False  # Se verificará en _validate_real_product
+                        })
+                        
+                    except Exception:
+                        continue
+                
+                if products:
+                    return products
+                    
+        except Exception as e:
+            logger.debug(f"Último intento falló: {e}")
+        
+        return []
     
     def _extract_product_data(self, item_data: Dict) -> Optional[Dict[str, Any]]:
         """Extrae datos del producto desde JSON de AliExpress"""
@@ -384,8 +438,12 @@ class AliExpressRealBot:
                 price_str = price_info['salePrice'].get('formattedPrice', '0')
                 price = self._extract_price_from_string(price_str)
             
-            # Construir URL del producto
-            product_url = f"{self.base_url}/item/{product_id}.html"
+            # Construir URL del producto REAL
+            if product_id:
+                product_url = f"{self.base_url}/item/{product_id}.html"
+            else:
+                # Si no hay product_id, intentar extraer de otros campos
+                product_url = self._extract_url_from_item(item_data)
             
             # Extraer imagen
             image_url = ''
@@ -394,6 +452,11 @@ class AliExpressRealBot:
                 if image_url and not image_url.startswith('http'):
                     image_url = 'https:' + image_url
             
+            # Solo devolver si tenemos una URL válida
+            if not product_url or not product_url.startswith('http'):
+                logger.debug("❌ No se pudo extraer URL válida del producto")
+                return None
+            
             return {
                 'url': product_url,
                 'title': title,
@@ -401,52 +464,141 @@ class AliExpressRealBot:
                 'currency': 'USD',
                 'image': image_url,
                 'product_id': product_id,
-                'source': 'aliexpress_api'
+                'source': 'aliexpress_api',
+                'url_verified': False  # Se verificará después
             }
             
         except Exception as e:
             logger.debug(f"Error extrayendo producto: {e}")
             return None
     
+    def _extract_url_from_item(self, item_data: Dict) -> str:
+        """Extrae URL del producto desde diferentes campos del JSON"""
+        try:
+            # Buscar en diferentes ubicaciones posibles
+            url_fields = [
+                'productDetailUrl',
+                'detailUrl', 
+                'itemUrl',
+                'url',
+                'href'
+            ]
+            
+            for field in url_fields:
+                if field in item_data and item_data[field]:
+                    url = item_data[field]
+                    if url.startswith('/'):
+                        return self.base_url + url
+                    elif url.startswith('http'):
+                        return url
+            
+            # Si no encontramos URL directa, buscar en objetos anidados
+            if 'link' in item_data and isinstance(item_data['link'], dict):
+                href = item_data['link'].get('href', '')
+                if href:
+                    return urljoin(self.base_url, href)
+                    
+        except Exception as e:
+            logger.debug(f"Error extrayendo URL: {e}")
+        
+        return ""
+    
     def _parse_html_products(self, soup: BeautifulSoup, max_results: int) -> List[Dict[str, Any]]:
         """Parsea productos desde HTML cuando JSON no está disponible"""
         products = []
         
         try:
-            # Buscar elementos de productos
-            product_items = soup.find_all(['div', 'article'], class_=re.compile(r'item|product'))
+            # Buscar elementos de productos con selectores más específicos
+            product_selectors = [
+                'a[href*="/item/"]',  # Enlaces directos a productos
+                '.item-wrap a',
+                '.product-item a', 
+                '[data-product-id] a',
+                '.list-item a[href*="/item/"]'
+            ]
             
-            for item in product_items[:max_results]:
+            product_links = []
+            for selector in product_selectors:
+                links = soup.select(selector)
+                if links:
+                    product_links.extend(links[:max_results])
+                    break
+            
+            # Si no encontramos con selectores específicos, buscar genéricamente
+            if not product_links:
+                product_links = soup.find_all('a', href=re.compile(r'/item/\d+\.html'))
+            
+            for link in product_links[:max_results]:
                 try:
-                    # Extraer título
-                    title_elem = item.find(['h1', 'h2', 'h3', 'a'], string=re.compile(r'.+'))
-                    title = title_elem.get_text(strip=True) if title_elem else 'Producto encontrado'
+                    # Extraer URL real
+                    href = link.get('href', '')
+                    if not href:
+                        continue
+                        
+                    # Construir URL completa
+                    if href.startswith('/'):
+                        product_url = self.base_url + href
+                    elif href.startswith('http'):
+                        product_url = href
+                    else:
+                        continue
                     
-                    # Extraer precio
-                    price_elem = item.find(string=re.compile(r'\$[\d,]+\.?\d*'))
-                    price = self._extract_price_from_string(price_elem) if price_elem else random.uniform(10, 100)
+                    # Extraer título - buscar en varios lugares
+                    title = ''
+                    title_sources = [
+                        link.get('title'),
+                        link.get_text(strip=True),
+                        link.get('alt'),
+                        link.find('img', alt=True)
+                    ]
                     
-                    # Extraer URL
-                    link_elem = item.find('a', href=True)
-                    product_url = urljoin(self.base_url, link_elem['href']) if link_elem else ''
+                    for source in title_sources:
+                        if source:
+                            if hasattr(source, 'get'):  # Es un elemento
+                                title = source.get('alt', '')
+                            else:  # Es texto
+                                title = str(source).strip()
+                            if title and len(title) > 5:  # Título mínimamente útil
+                                break
+                    
+                    if not title:
+                        title = 'Producto AliExpress'
+                    
+                    # Extraer precio desde elementos cercanos
+                    price = 0.0
+                    price_container = link.find_parent(['div', 'article', 'li'])
+                    if price_container:
+                        price_texts = price_container.find_all(string=re.compile(r'\$[\d,]+\.?\d*|US\s*\$[\d,]+'))
+                        for price_text in price_texts:
+                            extracted_price = self._extract_price_from_string(price_text)
+                            if extracted_price > 0:
+                                price = extracted_price
+                                break
+                    
+                    # Si no encontramos precio, usar uno aleatorio razonable
+                    if price == 0:
+                        price = random.uniform(5.99, 99.99)
                     
                     # Extraer imagen
-                    img_elem = item.find('img', src=True)
-                    image_url = img_elem['src'] if img_elem else ''
-                    if image_url and not image_url.startswith('http'):
-                        image_url = 'https:' + image_url
+                    image_url = ''
+                    img = link.find('img', src=True)
+                    if img:
+                        image_url = img['src']
+                        if image_url and not image_url.startswith('http'):
+                            image_url = 'https:' + image_url
                     
                     products.append({
                         'url': product_url,
                         'title': title[:100],  # Limitar longitud
-                        'price': price,
+                        'price': round(price, 2),
                         'currency': 'USD',
                         'image': image_url,
-                        'source': 'aliexpress_html'
+                        'source': 'aliexpress_html',
+                        'url_verified': False  # Se verificará después
                     })
                     
                 except Exception as e:
-                    logger.debug(f"Error parsing HTML product: {e}")
+                    logger.debug(f"Error parsing HTML product link: {e}")
                     continue
             
         except Exception as e:
@@ -465,12 +617,84 @@ class AliExpressRealBot:
             pass
         return 0.0
     
+    def _validate_product_url(self, url: str) -> Dict[str, Any]:
+        """Valida que una URL de producto existe realmente"""
+        if not url or not url.startswith('http'):
+            return {
+                'is_valid': False,
+                'reason': 'Invalid or missing URL',
+                'status_code': 0
+            }
+        
+        try:
+            # Hacer una request HEAD para verificar si la URL existe
+            logger.debug(f"🔍 Validando URL: {url}")
+            response = self.session.head(url, timeout=10, allow_redirects=True)
+            
+            # Considerar válidas las respuestas 200-299
+            if 200 <= response.status_code < 300:
+                logger.debug(f"✅ URL válida: {response.status_code}")
+                return {
+                    'is_valid': True,
+                    'reason': 'URL verified successfully',
+                    'status_code': response.status_code
+                }
+            elif response.status_code == 404:
+                logger.debug(f"❌ URL no encontrada: 404")
+                return {
+                    'is_valid': False,
+                    'reason': 'Product page not found (404)',
+                    'status_code': 404
+                }
+            else:
+                logger.debug(f"⚠️ URL con estado inesperado: {response.status_code}")
+                return {
+                    'is_valid': False,
+                    'reason': f'HTTP error {response.status_code}',
+                    'status_code': response.status_code
+                }
+                
+        except requests.exceptions.Timeout:
+            logger.debug(f"⏰ Timeout validando URL")
+            return {
+                'is_valid': False,
+                'reason': 'URL validation timeout',
+                'status_code': 0
+            }
+        except requests.exceptions.RequestException as e:
+            logger.debug(f"❌ Error de conexión: {e}")
+            return {
+                'is_valid': False,
+                'reason': f'Connection error: {str(e)[:50]}',
+                'status_code': 0
+            }
+        except Exception as e:
+            logger.debug(f"❌ Error inesperado: {e}")
+            return {
+                'is_valid': False,
+                'reason': f'Validation error: {str(e)[:50]}',
+                'status_code': 0
+            }
+    
     def _validate_real_product(self, product: Dict[str, Any], min_price: float, 
                              max_price: float, currency: str, max_shipping_days: int) -> Dict[str, Any]:
         """Valida un producto real contra los criterios de filtrado"""
         
         product_price = product.get('price', 0.0)
         product_url = product.get('url', '')
+        
+        # NUEVA VALIDACIÓN: Verificar que la URL existe realmente
+        url_validation = self._validate_product_url(product_url)
+        if not url_validation['is_valid']:
+            return {
+                'is_valid': False,
+                'discard_info': {
+                    'candidate_url': product_url,
+                    'reason': url_validation['reason'],
+                    'http_status': url_validation['status_code'],
+                    'note': f"Product title: {product.get('title', '')[:50]}..."
+                }
+            }
         
         # Validar precio
         if product_price < min_price:
@@ -505,7 +729,8 @@ class AliExpressRealBot:
                 'currency': currency,
                 'image': product.get('image', ''),
                 'source_platform': 'aliexpress',
-                'scraped_at': datetime.now(timezone.utc).isoformat()
+                'scraped_at': datetime.now(timezone.utc).isoformat(),
+                'url_verified': True  # Marcar que la URL fue verificada
             }
         }
     

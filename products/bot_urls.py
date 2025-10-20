@@ -19,3 +19,6 @@ bot_urlpatterns = [
     path('api/test-bot/', test_bot_api, name='test_bot_api'),
     path('api/bot-status/', BotStatusView.as_view(), name='bot_status'),
 ]
+
+# Asignar a urlpatterns para Django
+urlpatterns = bot_urlpatterns
