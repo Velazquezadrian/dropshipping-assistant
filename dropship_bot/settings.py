@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'django_filters',
     'django_crontab',  # Restaurado - tareas programadas
     'django_extensions',  # Para runserver_plus con HTTPS
+    'sslserver',  # Para soporte HTTPS
     'products',
 ]
 
